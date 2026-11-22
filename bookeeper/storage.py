@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from filelock import FileLock
 
@@ -17,6 +17,8 @@ class Location(TypedDict):
     kind: LocationKind
     name: str
     parent_id: str
+    x: NotRequired[int]
+    y: NotRequired[int]
 
 
 class BookCopy(TypedDict):
@@ -27,6 +29,24 @@ class BookCopy(TypedDict):
     isbn: str
     tags: list[str]
     location_id: str
+    summary: NotRequired[str]
+    genre: NotRequired[str]
+    format: NotRequired[str]
+
+
+class Reading(TypedDict):
+    status: str
+    dates: list[str]
+
+
+class Loan(TypedDict):
+    direction: Literal["lent", "borrowed"]
+    copy_id: str
+    title: str
+    person: str
+    started: str
+    due: str
+    returned: str
 
 
 class Library(TypedDict):
@@ -34,6 +54,10 @@ class Library(TypedDict):
     users: dict[str, str]
     copies: dict[str, BookCopy]
     locations: dict[str, Location]
+    reading: NotRequired[dict[str, Reading]]
+    loans: NotRequired[dict[str, Loan]]
+    wishlists: NotRequired[dict[str, dict[str, BookCopy]]]
+    notes: NotRequired[dict[str, dict[str, str]]]
 
 
 class Store:

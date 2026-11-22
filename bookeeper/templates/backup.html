@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Backup · Bookeeper{% endblock %}
+{% block content %}
+<h1>Library backups</h1>
+<p>Snapshots include books, locations, reading history, and loans. They do not include sign-ins, private wishlists, or personal notes.</p>
+<div class="actions">
+    <form action="{{ url_for('backups.snapshot') }}" method="post">
+        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+        <button class="primary" type="submit">Create snapshot</button>
+    </form>
+    <a class="button" href="{{ url_for('backups.export') }}">Export catalog as CSV</a>
+</div>
+<div class="cards">
+    <section class="card">
+        <h2>Saved snapshots</h2>
+        <ul>
+            {% for name in snapshots %}<li><a href="{{ url_for('backups.download', name=name) }}">{{ name }}</a></li>
+            {% else %}<li>No snapshots yet.</li>{% endfor %}
+        </ul>
+        {% if snapshots %}
+            <form class="fields" action="{{ url_for('backups.restore') }}" method="post">
+                <input type="hidden" name="csrf" value="{{ session.csrf }}">
+                <label>Saved snapshot <select name="saved" required>
+                    {% for name in snapshots %}<option>{{ name }}</option>{% endfor %}
+                </select></label>
+                <label class="check"><input type="checkbox" name="confirm" value="yes" required> Replace the current shared library</label>
+                <button type="submit">Restore saved snapshot</button>
+            </form>
+        {% endif %}
+    </section>
+    <form class="card fields" action="{{ url_for('backups.restore') }}" method="post" enctype="multipart/form-data">
+        <h2>Restore a downloaded snapshot</h2>
+        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+        <label>Bookeeper snapshot (.json) <input name="snapshot" type="file" accept=".json,application/json" required></label>
+        <label class="check"><input type="checkbox" name="confirm" value="yes" required> Replace the current shared library</label>
+        <button type="submit">Restore uploaded snapshot</button>
+        <small>Bookeeper saves a snapshot of the current library before replacing it.</small>
+    </form>
+</div>
+{% endblock %}

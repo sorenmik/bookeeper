@@ -2,6 +2,7 @@
 {% block title %}Locations · Bookeeper{% endblock %}
 {% block content %}
 <h1>Locations</h1>
+<p><a class="button primary" href="{{ floor_url }}">Open room floor plans</a></p>
 <p>Set up rooms, then add bookcases and piles. Add shelves inside bookcases.</p>
 {% macro add_form(kind, choices=[]) %}
     <form class="card fields" method="post" action="{{ url_for('add_location') }}">

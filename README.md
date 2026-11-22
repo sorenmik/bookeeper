@@ -11,6 +11,7 @@ From the project folder in PowerShell:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+npm ci
 ```
 
 Then open Git Bash in the project folder and run:
@@ -21,15 +22,16 @@ bash service.sh
 ```
 
 The setup script prompts for a username and a non-empty password.
-It only works before any account exists. Bookeeper does not yet distinguish
-admin and household permissions. To add another household member, run
+It only works before any account exists. The first account can manage shared
+backups. To add another household member, run
 `.\.venv\Scripts\python.exe -m flask --app bookeeper add-user alice` in PowerShell,
 replacing `alice` with their username.
 
 The menu shows the current status. Choose **1** to start Bookeeper in the
-background, **2** to stop it, or **0** to exit without changes. Run the same
-command again to check status or stop it. The menu only controls the server it
-started. If you prefer to run Flask in the foreground, use
+background, **2** to stop it, **3** to restart it, or **0** to exit without
+changes. Restart waits for the current server to stop before starting a new
+one. If it is already stopped, restart just starts it. The menu only controls
+the server it started. If you prefer to run Flask in the foreground, use
 `.\.venv\Scripts\python.exe -m flask --app bookeeper run` in PowerShell instead.
 
 Open <http://127.0.0.1:5000> and sign in. Under **Locations**, add a
@@ -37,16 +39,62 @@ room, then a bookcase and shelf or a standalone pile. Use **Add a copy** to
 enter a book manually or use its ISBN to fill in the title and author from Open
 Library. A copy can also be left unassigned.
 
-The development server is intended for local testing only. To make Bookeeper
-available to phones, use a production WSGI server behind a trusted HTTPS
-endpoint on the home network. Set `BOOKEEPER_SECURE_COOKIES=1` for that HTTPS
-deployment. Do not expose the development server or forward its port to the Internet.
+### Phone access over home-network HTTPS
+
+Keep the development server local. To serve Bookeeper to phones, stop it and
+run Waitress on loopback behind an HTTPS reverse proxy on the same machine:
+
+```powershell
+$env:BOOKEEPER_PUBLIC_URL = 'https://books.home.arpa'
+$env:BOOKEEPER_SECURE_COOKIES = '1'
+.\.venv\Scripts\waitress-serve.exe --listen=127.0.0.1:5000 --max-request-body-size=16842752 --call bookeeper:create_app
+```
+
+For example, with Caddy on the same machine, point `books.home.arpa` in local
+DNS to the host's LAN IP (`192.168.1.20` in this example) and use:
+
+```caddyfile
+{
+    auto_https disable_redirects
+}
+books.home.arpa {
+    bind 192.168.1.20
+    tls internal
+    reverse_proxy 127.0.0.1:5000
+}
+```
+
+Allow inbound HTTPS only from your home subnet. Do not forward a router port.
+Install and trust the proxy's local **root certificate** on each device, or
+use a certificate already trusted by the devices. Keep the CA private key on
+the proxy. The Connect QR code uses `BOOKEEPER_PUBLIC_URL`; use that HTTPS URL
+for both signing in and phone scanning. Typing or pasting ISBNs still works
+without the camera. The npm package provides a locally served scanner.
+
+### Backing up and testing
+
+In **Backup**, the first account can save, download, or restore a shared
+snapshot and export a CSV catalog. A restore saves the outgoing catalog before
+replacing it. The shared snapshot excludes credentials, personal notes, and
+private wishlists. For migration to a new instance, create its first account
+before restoring a snapshot.
 
 Library data defaults to `instance\library.json`. Set `BOOKEEPER_DATA_DIR`
 to use another local folder, accessible only to the account running the app.
 The JSON file contains password hashes and the session signing key; keep it
-private. To copy it for migration before the in-app backup workflow is ready,
-stop the app first.
+private. If you need to migrate the entire installation (including accounts
+and private data), stop Bookeeper and transfer the complete data directory
+securely outside the web interface.
+
+To try 200 synthetic copies in a separate catalog, use an empty directory
+and create its own test sign-in:
+
+```powershell
+$env:BOOKEEPER_DATA_DIR = Join-Path $PWD 'instance\demo'
+.\.venv\Scripts\python.exe -m flask --app bookeeper seed-demo
+.\.venv\Scripts\python.exe -m flask --app bookeeper create-first-user
+.\.venv\Scripts\python.exe -m flask --app bookeeper run --port 5001
+```
 
 ## Tests
 
@@ -55,4 +103,4 @@ stop the app first.
 ```
 
 The tests use temporary data folders and do not contact Open Library.
-See [todo.md](./todo.md) for features beyond the initial catalog milestone.
+See [todo.md](./todo.md) for the project requirements.

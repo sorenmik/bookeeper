@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Statistics · Bookeeper{% endblock %}
+{% block content %}
+<h1>Household statistics</h1>
+<div class="cards">
+    <section class="card"><h2>Books finished in {{ year }}</h2><p class="metric">{{ dates|length }}</p><p>Includes rereads</p></section>
+    <section class="card"><h2>Library copies</h2><p class="metric">{{ total }}</p></section>
+</div>
+<h2>Current reading status</h2>
+<dl class="cards">
+    {% for status, count in counts.items() %}
+        <div class="card"><dt>{{ status|capitalize }}</dt><dd class="metric">{{ count }}</dd></div>
+    {% endfor %}
+</dl>
+{% endblock %}

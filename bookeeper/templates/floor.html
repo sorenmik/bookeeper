@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Floor plans · Bookeeper{% endblock %}
+{% block content %}
+<h1>Room floor plans</h1>
+<p>Drag bookcases and piles to place them, or set their coordinates below the map. Select a shelf or pile to see its books.</p>
+<p><a href="{{ url_for('locations') }}">Manage locations</a></p>
+{% for room in rooms %}
+    {% set items = locations.values()|selectattr('parent_id', 'equalto', room.id)|list %}
+    <section class="card floor-room">
+        <h2>{{ room.name }}</h2>
+        {% if items %}
+            <div class="floor" aria-label="Map of {{ room.name }}">
+                {% for item in items %}
+                    {% set x = item.get('x', (loop.index0 * 29 + 10) % 95) %}
+                    {% set y = item.get('y', (loop.index0 * 37 + 20) % 90) %}
+                    <button class="map-token {{ item.kind }}" type="button" style="--x:{{ x }}%;--y:{{ y }}%"
+                            data-x="{{ x }}" data-y="{{ y }}" data-form="position-{{ item.id }}">{{ item.name }}</button>
+                {% endfor %}
+            </div>
+            <p class="floor-status" role="status"></p>
+        {% endif %}
+        <ul class="cards">
+            {% for item in items %}
+                <li class="card">
+                    <h3><a href="{{ url_for('catalog', location=item.id) }}">{{ item.name }}</a></h3>
+                    {% if item.kind == 'bookcase' %}
+                        <ul>{% for shelf in locations.values()|selectattr('parent_id', 'equalto', item.id) %}
+                            <li><a href="{{ url_for('catalog', location=shelf.id) }}">{{ shelf.name }}</a></li>
+                        {% else %}<li>No shelves yet.</li>{% endfor %}</ul>
+                    {% endif %}
+                    <form class="coordinates actions" method="post" id="position-{{ item.id }}" action="{{ url_for('household.position', key=item.id) }}">
+                        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+                        <label>X <input type="number" min="0" max="100" required name="x" value="{{ item.get('x', (loop.index0 * 29 + 10) % 95) }}"></label>
+                        <label>Y <input type="number" min="0" max="100" required name="y" value="{{ item.get('y', (loop.index0 * 37 + 20) % 90) }}"></label>
+                        <button type="submit">Save position</button>
+                    </form>
+                </li>
+            {% else %}<li>No bookcases or piles yet.</li>{% endfor %}
+        </ul>
+    </section>
+{% else %}<p>No rooms yet. Add one under Locations to get started.</p>{% endfor %}
+{% endblock %}

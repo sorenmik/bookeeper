@@ -21,17 +21,33 @@ class LookupUnavailable(Exception):
     pass
 
 
-def lookup_isbn(isbn: str) -> tuple[str, str] | None:
-    key = f"ISBN:{isbn}"
-    query = urlencode({"bibkeys": key, "format": "json", "jscmd": "data"})
-    request = Request(f"https://openlibrary.org/api/books?{query}", headers={"Accept": "application/json"})
+def _open_library(path: str) -> dict:
+    request = Request(f"https://openlibrary.org{path}", headers={"Accept": "application/json"})
     try:
         with urlopen(request, timeout=5) as response:
-            payload = json.loads(response.read(256 * 1024 + 1))
+            data = response.read(256 * 1024 + 1)
+        payload = json.loads(data) if len(data) <= 256 * 1024 else None
     except (URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise LookupUnavailable from exc
     if not isinstance(payload, dict):
         raise LookupUnavailable
+    return payload
+
+
+def _summary(record: dict) -> str:
+    for field in ("description", "notes"):
+        value = record.get(field)
+        if isinstance(value, dict):
+            value = value.get("value")
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:5000]
+    return ""
+
+
+def lookup_isbn(isbn: str) -> tuple[str, str] | tuple[str, str, str] | None:
+    key = f"ISBN:{isbn}"
+    query = urlencode({"bibkeys": key, "format": "json", "jscmd": "data"})
+    payload = _open_library(f"/api/books?{query}")
     if key not in payload:
         return None
     book = payload[key]
@@ -48,7 +64,24 @@ def lookup_isbn(isbn: str) -> tuple[str, str] | None:
     title = book["title"].strip()
     if not title:
         raise LookupUnavailable
-    return title[:250], ", ".join(names)[:250]
+    result = title[:250], ", ".join(names)[:250]
+    summary = _summary(book)
+    edition = book.get("key")
+    if not edition and isinstance(book.get("url"), str):
+        edition = re.search(r"(/books/OL[0-9]+M)(?:/|$)", book["url"])
+        edition = edition.group(1) if edition else None
+    if not summary and isinstance(edition, str) and re.fullmatch(r"/books/OL[0-9]+M", edition):
+        try:
+            record = _open_library(edition + ".json")
+            summary = _summary(record)
+            works = record.get("works")
+            if not summary and isinstance(works, list) and works and isinstance(works[0], dict):
+                key = works[0].get("key")
+                if isinstance(key, str) and re.fullmatch(r"/works/OL[0-9]+W", key):
+                    summary = _summary(_open_library(key + ".json"))
+        except LookupUnavailable:
+            pass  # The ISBN metadata is still useful if the optional summary is unavailable.
+    return (*result, summary) if summary else result
 
 
 def normalize_isbn(value: str) -> str:
@@ -113,7 +146,9 @@ def search_copies(
             item["id"] for item in location_path(copy["location_id"], locations)
         }:
             continue
-        text = fold(" ".join([copy["title"], copy["author"], copy["series"], copy["isbn"], *copy["tags"]]))
+        text = fold(" ".join([
+            copy["title"], copy["author"], copy["series"], copy["isbn"], copy.get("genre", ""), *copy["tags"]
+        ]))
         if isbn_query == copy["isbn"] or all(word in text for word in words):
             results.append(copy)
     return sorted(results, key=lambda item: (fold(item["title"]), fold(item["author"])))

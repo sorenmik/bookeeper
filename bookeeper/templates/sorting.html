@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sorting · Bookeeper{% endblock %}
+{% block content %}
+<h1>Sorting suggestions</h1>
+<p>See a suggested order and the current location of each copy. This does not change the catalog.</p>
+<form class="card actions" method="get">
+    <label>Sort by <select name="by">
+        {% for field in allowed %}<option value="{{ field }}"{% if field == order[0] %} selected{% endif %}>{{ field|capitalize }}</option>{% endfor %}
+    </select></label>
+    <label>Then by <select name="by">
+        <option value="">None</option>
+        {% for field in allowed %}<option value="{{ field }}"{% if field == order[1] %} selected{% endif %}>{{ field|capitalize }}</option>{% endfor %}
+    </select></label>
+    <button type="submit">Show suggestions</button>
+</form>
+<ol class="sort-list">
+    {% for book in copies %}
+        <li><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a>
+            <span class="muted">{{ [book.author, book.get('genre', ''), book.get('format', ''), labels.get(book.location_id, 'Unassigned')]|select|join(' · ') }}</span></li>
+    {% else %}<li>No books to sort.</li>{% endfor %}
+</ol>
+{% endblock %}

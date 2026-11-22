@@ -27,6 +27,16 @@ It should be a webpage made in Python.
     - Export the catalog as a CSV file that opens in spreadsheet apps.
 
 
+## Testing
+
+- Seed a separate test library with 200 sample books using `flask --app bookeeper seed-demo`.
+
+## Deployment and backup decisions
+
+- Serve HTTPS through a trusted reverse proxy on the home network. The local launcher stays loopback-only.
+- The first household account can create, download, and restore shared snapshots. Exclude accounts, private wishlists, and personal notes.
+
+
 ## Graphical
 
 - We need light and dark mode

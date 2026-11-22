@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Loans · Bookeeper{% endblock %}
+{% block content %}
+<h1>Loans</h1>
+{% macro details() %}
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Person <input name="person" required maxlength="120"></label>
+    <label>Start date <input type="date" name="started" value="{{ today }}" max="{{ today }}"></label>
+    <label>Due date (optional) <input type="date" name="due"></label>
+    <button type="submit">Record loan</button>
+{% endmacro %}
+<div class="cards">
+    <form class="card fields" method="post">
+        <h2>Lend a book</h2>
+        <input type="hidden" name="direction" value="lent">
+        <label>Library copy <select name="copy_id" required>
+            <option value="">Choose a copy</option>
+            {% for book in available %}<option value="{{ book.id }}">{{ book.title }}{% if book.author %} — {{ book.author }}{% endif %} · {{ labels.get(book.location_id, 'Unassigned') }} [{{ book.id[-6:] }}]</option>{% endfor %}
+        </select></label>
+        {{ details() }}
+    </form>
+    <form class="card fields" method="post">
+        <h2>Record a borrowed book</h2>
+        <input type="hidden" name="direction" value="borrowed">
+        <label>Title <input name="title" required maxlength="250"></label>
+        {{ details() }}
+    </form>
+</div>
+<ul class="cards">
+    {% for key, loan in loans %}
+        <li class="card">
+            <h2>{{ loan.title }}</h2>
+            <p>{{ 'Lent to' if loan.direction == 'lent' else 'Borrowed from' }} {{ loan.person }} on {{ loan.started }}.</p>
+            {% if loan.due %}<p>Due {{ loan.due }}{% if not loan.returned and loan.due < today %} · Overdue{% endif %}</p>{% endif %}
+            {% if loan.returned %}
+                <p>Returned {{ loan.returned }}</p>
+            {% else %}
+                <form method="post" action="{{ url_for('household.return_loan', key=key) }}">
+                    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+                    <button type="submit">Mark returned</button>
+                </form>
+            {% endif %}
+        </li>
+    {% else %}<li>No loans recorded.</li>{% endfor %}
+</ul>
+{% endblock %}

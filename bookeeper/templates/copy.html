@@ -1,16 +1,31 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Edit copy' if editing else 'Add a copy' }} · Bookeeper{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='scanner.js') }}" defer></script>{% endblock %}
 {% block content %}
 <h1>{{ 'Edit copy' if editing else 'Add a copy' }}</h1>
 {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+{% if matches %}
+<section class="card narrow"><h2>Owned copies</h2><ul>
+    {% for id, label in matches %}<li><a href="{{ url_for('edit_copy', copy_id=id) }}">{{ label }}</a></li>{% endfor %}
+</ul></section>
+{% endif %}
 <form class="card fields narrow" method="post">
     <input type="hidden" name="csrf" value="{{ session.csrf }}">
     <label>Title <input name="title" value="{{ book.title }}" maxlength="250" required></label>
     <label>Author <input name="author" value="{{ book.author }}" maxlength="250"></label>
     <label>Series <input name="series" value="{{ book.series }}" maxlength="250"></label>
-    <label>ISBN (optional) <input name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
+    <label>ISBN (optional) <input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
     <small id="isbn-help">Only the ISBN is sent to Open Library if you look it up.</small>
+    <div id="scanner-controls" data-reader="{{ url_for('scanner') }}">
+        <button type="button" id="scan-start">Scan ISBN with camera</button>
+        <button type="button" id="scan-stop" hidden>Stop camera</button>
+        <p id="scan-status" role="status"></p>
+        <div id="scan-view" hidden></div>
+    </div>
+    <label>Genre <input name="genre" value="{{ book.genre|default('') }}" maxlength="80"></label>
+    <label>Format <input name="format" value="{{ book.format|default('') }}" maxlength="80" placeholder="Hardcover, paperback, ebook…"></label>
+    <label>Summary <textarea name="summary" maxlength="5000" rows="4">{{ book.summary|default('') }}</textarea></label>
     <label>Tags (comma separated) <input name="tags" value="{{ book.tags|join(', ') }}"></label>
     <label>Shelf or pile
         <select name="location_id">
@@ -31,6 +46,23 @@
     </div>
 </form>
 {% if editing %}
+<form class="card fields narrow" method="post" action="{{ url_for('household.record_reading', copy_id=book.id) }}">
+    <h2>Shared reading history</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Status <select name="status">
+        {% for status in reading_statuses %}<option value="{{ status }}"{% if status == reading.status %} selected{% endif %}>{{ status|capitalize }}</option>{% endfor %}
+    </select></label>
+    <label>Record a finish date <input type="date" name="finished"></label>
+    <small>Choose Finished and enter a date to add a read or reread.</small>
+    {% if reading.dates %}<p>Finished: {{ reading.dates|join(', ') }}</p>{% endif %}
+    <button type="submit">Save reading history</button>
+</form>
+<form class="card fields narrow" method="post" action="{{ url_for('household.save_note', copy_id=book.id) }}">
+    <h2>Personal note</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Only visible to your account <textarea name="note" maxlength="5000" rows="4">{{ note }}</textarea></label>
+    <button type="submit">Save note</button>
+</form>
 <details class="card narrow">
     <summary>Remove this copy</summary>
     <p>This removes only this copy from the catalog.</p>

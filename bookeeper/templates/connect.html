@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Connect · Bookeeper{% endblock %}
+{% block content %}
+<h1>Open Bookeeper on your phone</h1>
+<section class="card narrow">
+    <img class="connection-code" src="{{ url_for('household.qr') }}" width="200" height="200" alt="QR code for the Bookeeper address">
+    <p><a href="{{ public_url }}">{{ public_url }}</a></p>
+    <p>Use a phone on your home network. The camera scanner requires HTTPS with a certificate your phone trusts.</p>
+</section>
+{% endblock %}

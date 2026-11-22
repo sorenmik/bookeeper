@@ -102,6 +102,9 @@ class Service:
         print("Bookeeper is stopped.")
         return 0
 
+    def restart(self) -> int:
+        return self.stop() or self.start()
+
 
 def main() -> int:
     args = sys.argv[1:]
@@ -118,14 +121,16 @@ def main() -> int:
 
         with service.commands:
             print(f"Bookeeper status: {service.status()}")
-        print("1. Start service\n2. Stop service\n0. Exit")
+        print("1. Start service\n2. Stop service\n3. Restart service\n0. Exit")
         choice = input("What would you like to do? ").strip()
-        if choice not in {"0", "1", "2"}:
-            print("Choose 1 to start, 2 to stop, or 0 to exit.", file=sys.stderr)
+        if choice not in {"0", "1", "2", "3"}:
+            print("Choose 1 to start, 2 to stop, 3 to restart, or 0 to exit.", file=sys.stderr)
             return 2
         if choice == "0":
             return 0
         with service.commands:
+            if choice == "3":
+                return service.restart()
             return service.start() if choice == "1" else service.stop()
     except (EOFError, KeyboardInterrupt):
         return 130

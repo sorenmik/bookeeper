@@ -17,8 +17,21 @@
             {% endfor %}
         </select>
     </label>
+    <label>Reading status
+        <select name="reading">
+            <option value="">Any status</option>
+            {% for status in reading_statuses %}<option value="{{ status }}"{% if status == reading_status %} selected{% endif %}>{{ status|capitalize }}</option>{% endfor %}
+        </select>
+    </label>
+    <label>Loan status
+        <select name="loan">
+            <option value="">Any status</option>
+            <option value="available"{% if loan_status == 'available' %} selected{% endif %}>Available</option>
+            <option value="lent"{% if loan_status == 'lent' %} selected{% endif %}>Lent out</option>
+        </select>
+    </label>
     <button type="submit">Search</button>
-    {% if query or selected %}<a href="{{ url_for('catalog') }}">Clear filters</a>{% endif %}
+    {% if query or selected or reading_status or loan_status %}<a href="{{ url_for('catalog') }}">Clear filters</a>{% endif %}
 </form>
 <p class="muted">{{ copies|length }} {{ 'copy' if copies|length == 1 else 'copies' }}</p>
 {% if copies %}
@@ -30,11 +43,12 @@
             {% if book.series %}<p>Series: {{ book.series }}</p>{% endif %}
             {% if book.isbn %}<p>ISBN {{ book.isbn }}</p>{% endif %}
             <p class="location">{{ labels.get(book.location_id, 'Unassigned') }}</p>
+            <p class="muted">{{ reading.get(book.id, {}).get('status', 'unread')|capitalize }}{% if book.id in lent %} · Lent out{% endif %}</p>
             {% if book.tags %}<p class="muted">{{ book.tags|join(', ') }}</p>{% endif %}
         </li>
         {% endfor %}
     </ul>
 {% else %}
-    <p class="card">{{ 'No copies match these filters.' if query or selected else 'Your catalog is empty. Add a copy to get started.' }}</p>
+    <p class="card">{{ 'No copies match these filters.' if query or selected or reading_status or loan_status else 'Your catalog is empty. Add a copy to get started.' }}</p>
 {% endif %}
 {% endblock %}
