@@ -54,8 +54,8 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         username = username.lower()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,39}", username):
             raise click.ClickException("Use 1 to 40 letters, digits, dots, dashes or underscores.")
-        if not 12 <= len(password) <= 256:
-            raise click.ClickException("Use a password between 12 and 256 characters.")
+        if not password:
+            raise click.ClickException("Enter a password.")
         password_hash = generate_password_hash(password)
         with store.edit() as library:
             if first_only and library["users"]:
@@ -115,7 +115,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             username = request.form.get("username", "").strip().lower()
             password = request.form.get("password", "")
             password_hash = users.get(username)
-            if len(password) <= 256 and check_password_hash(password_hash or fallback_hash, password):
+            if check_password_hash(password_hash or fallback_hash, password):
                 if password_hash:
                     session.clear()
                     session["user"] = username

@@ -120,6 +120,22 @@ class CatalogTests(unittest.TestCase):
 
 
 class SetupTests(unittest.TestCase):
+    def test_passwords_outside_previous_length_limits_work(self):
+        for password in ("x", "x" * 257):
+            with self.subTest(length=len(password)), TemporaryDirectory() as directory:
+                app = create_app({"TESTING": True, "DATA_DIR": directory})
+                result = app.test_cli_runner().invoke(
+                    args=["create-first-user"], input=f"Owner\n{password}\n{password}\n"
+                )
+                self.assertEqual(result.exit_code, 0, result.output)
+
+                client = app.test_client()
+                client.get("/login")
+                with client.session_transaction() as session:
+                    csrf = session["csrf"]
+                login = client.post("/login", data={"csrf": csrf, "username": "owner", "password": password})
+                self.assertEqual(login.location, "/")
+
     def test_first_account_can_sign_in_and_setup_cannot_be_repeated(self):
         with TemporaryDirectory() as directory:
             app = create_app({"TESTING": True, "DATA_DIR": directory})

@@ -20,7 +20,7 @@ bash create-admin.sh
 bash service.sh
 ```
 
-The setup script prompts for a username and a password of at least 12 characters.
+The setup script prompts for a username and a non-empty password.
 It only works before any account exists. Bookeeper does not yet distinguish
 admin and household permissions. To add another household member, run
 `.\.venv\Scripts\python.exe -m flask --app bookeeper add-user alice` in PowerShell,

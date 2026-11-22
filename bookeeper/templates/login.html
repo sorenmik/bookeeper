@@ -9,7 +9,7 @@
     <form method="post" class="fields">
         <input type="hidden" name="csrf" value="{{ session.csrf }}">
         <label>Username <input name="username" autocomplete="username" required maxlength="40"></label>
-        <label>Password <input type="password" name="password" autocomplete="current-password" required maxlength="256"></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
         <button class="primary" type="submit">Sign in</button>
     </form>
 </section>
