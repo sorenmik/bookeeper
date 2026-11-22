@@ -11,7 +11,7 @@
 <body>
     <header>
         <nav aria-label="Main navigation">
-            <a class="brand" href="{{ url_for('catalog') }}">Bookeeper</a>
+            <a class="brand" href="{{ url_for('home') }}">Bookeeper</a>
             {% if g.user %}
                 <a href="{{ url_for('catalog') }}">Catalog</a>
                 <a href="{{ url_for('locations') }}">Locations</a>

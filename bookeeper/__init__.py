@@ -1,6 +1,7 @@
 import os
 import re
 import secrets
+from datetime import date
 from pathlib import Path
 from random import Random
 from uuid import uuid4
@@ -27,6 +28,7 @@ from .catalog import (
 )
 from .workflows import READING_STATUSES, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
+from .dashboard import activity
 from .storage import BookCopy, LocationKind, Store
 
 
@@ -108,6 +110,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                     id=key, title=f"The {adjective} {subject}", author=f"Sample Author {index % 27 + 1}",
                     series="", isbn="", tags=["test-book"], location_id="",
                     genre=rng.choice(genres), format=rng.choice(("Paperback", "Hardcover")),
+                    added_on=date.today().isoformat(),
                 )
         click.echo("Added 200 sample books.")
 
@@ -132,7 +135,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
 
     @app.after_request
     def prevent_private_caching(response: Response) -> Response:
-        if request.endpoint in {"household.wishlist", "edit_copy", "login"}:
+        if request.endpoint in {"home", "household.wishlist", "edit_copy", "login"}:
             response.cache_control.no_store = True
         return response
 
@@ -150,7 +153,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     @app.route("/login", methods=["GET", "POST"])
     def login() -> Response | str:
         if g.user:
-            return redirect(url_for("catalog"))
+            return redirect(url_for("home"))
         users = store.read()["users"]
         if request.method == "POST":
             username = request.form.get("username", "").strip().lower()
@@ -160,7 +163,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                 if password_hash:
                     session.clear()
                     session["user"] = username
-                    return redirect(url_for("catalog"))
+                    return redirect(url_for("home"))
             flash("Username or password is incorrect.", "error")
         return render_template("login.html", has_users=bool(users))
 
@@ -177,6 +180,22 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         )
 
     @app.get("/")
+    def home() -> str:
+        if any(field in request.args for field in ("q", "location", "reading", "loan")):
+            return catalog()
+        library = store.read()
+        books = list(reversed(library["copies"].values()))
+        wishlist = list(reversed(library.get("wishlists", {}).get(g.user, {}).values()))
+        return render_template(
+            "home.html",
+            featured=next((book for book in books if book.get("cover_id")), books[0] if books else None),
+            recent=books[:6],
+            wishlist=wishlist[:4],
+            wishlist_count=len(wishlist),
+            activity=activity(library, date.today()),
+        )
+
+    @app.get("/catalog")
     def catalog() -> str:
         library = store.read()
         locations = library["locations"]
@@ -285,6 +304,10 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                             if find_duplicate(book, latest["copies"].values()):
                                 duplicate = True
                                 raise CopyFormError("A matching book is already in the library.")
+                        if copy_id is None:
+                            book["added_on"] = date.today().isoformat()
+                        elif added_on := latest["copies"][copy_id].get("added_on"):
+                            book["added_on"] = added_on
                         latest["copies"][book["id"]] = book
             except CopyFormError as exc:
                 error = str(exc)

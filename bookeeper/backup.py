@@ -17,7 +17,7 @@ MAX_BACKUP = 16 * 1024 * 1024
 SNAPSHOT = re.compile(r"bookeeper-\d{8}T\d{6}-[a-f0-9]{8}\.json")
 CATALOG_FIELDS = (
     "title", "author", "series", "isbn", "genre", "format", "summary", "publisher", "publication_date",
-    "language", "pages", "cover_id",
+    "language", "pages", "cover_id", "added_on",
 )
 
 
@@ -63,6 +63,9 @@ def validate_backup(data: bytes) -> dict:
         for field in ("pages", "cover_id"):
             value = book.get(field)
             need(value is None or (type(value) is int and positive_number(value) is not None))
+        if "added_on" in book:
+            need(strings(book, "added_on"))
+            iso_date(book["added_on"])
         location = book["location_id"]
         need(not location or location in locations and locations[location]["kind"] in COPY_LOCATIONS)
     for key, item in reading.items():

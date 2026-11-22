@@ -105,7 +105,7 @@ def register_workflows(app: Flask, store: Store) -> None:
             book = books.pop(key)
             if action == "bought":
                 copy_id = uuid4().hex
-                library["copies"][copy_id] = {**book, "id": copy_id}
+                library["copies"][copy_id] = {**book, "id": copy_id, "added_on": date.today().isoformat()}
         flash("Book moved to the shared catalog." if action == "bought" else "Wishlist entry removed.", "success")
         return redirect(url_for("household.wishlist"))
 

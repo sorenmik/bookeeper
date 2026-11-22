@@ -34,7 +34,10 @@ one. If it is already stopped, restart just starts it. The menu only controls
 the server it started. If you prefer to run Flask in the foreground, use
 `.\.venv\Scripts\python.exe -m flask --app bookeeper run` in PowerShell instead.
 
-Open <http://127.0.0.1:5000> and sign in. Under **Locations**, add a
+Open <http://127.0.0.1:5000> and sign in. The home page has catalog search,
+recent additions, quick actions, a private wishlist preview, and a monthly
+activity chart. Copies added before date tracking began still count in the
+catalog total but not in the chart’s “Added” series. Under **Locations**, add a
 room, then a bookcase and shelf or a standalone pile. Use **Add a copy** to
 enter a book manually or look up its ISBN. When Open Library has the data,
 lookup fills blank fields for title, author, summary, genre (suggested from

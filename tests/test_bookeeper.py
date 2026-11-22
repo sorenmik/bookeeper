@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from bookeeper import create_app
 from bookeeper.catalog import BookMetadata, LookupUnavailable, lookup_isbn, normalize_isbn
+from bookeeper.dashboard import activity
 from bookeeper.service import Service
 from bookeeper.storage import Store
 
@@ -140,7 +141,7 @@ class CatalogTests(unittest.TestCase):
         )
         copy = next(iter(self.store.read()["copies"].values()))
         self.assertEqual((copy["pages"], copy["language"]), (336, "English"))
-        self.assertIn(b"336 pages", self.client.get("/").data)
+        self.assertIn(b"336 pages", self.client.get("/catalog").data)
 
 
 class SetupTests(unittest.TestCase):
@@ -217,11 +218,16 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.submit(self.member, "/wishlist", title="Secret book").status_code, 302)
         key = next(iter(self.store.read()["wishlists"]["member"]))
         self.assertNotIn(b"Secret book", self.owner.get("/wishlist").data)
+        self.assertNotIn(b"Secret book", self.owner.get("/").data)
+        private_home = self.member.get("/")
+        self.assertIn(b"Secret book", private_home.data)
+        self.assertIn("no-store", private_home.headers["Cache-Control"])
         self.assertEqual(self.submit(self.owner, f"/wishlist/{key}/bought").status_code, 404)
         self.assertEqual(self.submit(self.member, f"/wishlist/{key}/bought").status_code, 302)
         self.assertEqual(self.submit(self.member, f"/wishlist/{key}/bought").status_code, 404)
         self.assertIn(b"Secret book", self.owner.get("/").data)
         copy_id = next(iter(self.store.read()["copies"]))
+        self.assertEqual(self.store.read()["copies"][copy_id]["added_on"], date.today().isoformat())
         self.submit(self.member, f"/copies/{copy_id}/note", note="Member-only note")
         self.assertNotIn(b"Member-only note", self.owner.get(f"/copies/{copy_id}/edit").data)
         self.assertIn(b"Member-only note", self.member.get(f"/copies/{copy_id}/edit").data)
@@ -229,6 +235,28 @@ class WorkflowTests(unittest.TestCase):
         wishlist = self.member.get("/wishlist")
         self.assertIn(b"Marking it bought adds another copy.", wishlist.data)
         self.assertIn("no-store", wishlist.headers["Cache-Control"])
+
+    def test_home_tracks_additions_without_inventing_legacy_dates(self):
+        old_id = self.add_copy("Undated book")
+        with self.store.edit() as library:
+            del library["copies"][old_id]["added_on"]
+        recent_id = self.add_copy("New book")
+        stamp = date.today().isoformat()
+        self.assertEqual(self.store.read()["copies"][recent_id]["added_on"], stamp)
+        edit = self.submit(self.owner, f"/copies/{recent_id}/edit", title="New edition")
+        self.assertEqual(edit.status_code, 302)
+        self.assertEqual(self.store.read()["copies"][recent_id]["added_on"], stamp)
+        self.assertEqual(self.submit(
+            self.owner, f"/copies/{recent_id}/reading", status="finished", finished=stamp
+        ).status_code, 302)
+        home = self.owner.get("/")
+        self.assertIn(b'action="/catalog"', home.data)
+        self.assertIn(b"New edition", home.data)
+        self.assertIn(b"1 copy has no recorded addition date", home.data)
+        self.assertIn(b"1 added, 1 finished", home.data)
+        search = self.owner.get("/catalog", query_string={"q": "Undated book"})
+        self.assertIn(b"Undated book", search.data)
+        self.assertNotIn(b"New edition", search.data)
 
     def test_shared_reading_rereads_loans_and_filters(self):
         copy_id = self.add_copy()
@@ -288,6 +316,22 @@ class WorkflowTests(unittest.TestCase):
 
 
 class DataTests(unittest.TestCase):
+    def test_activity_window_crosses_year_and_counts_rereads(self):
+        with TemporaryDirectory() as directory:
+            store = Store(Path(directory))
+            with store.edit() as library:
+                for key, stamp in (("old", "2024-01-10"), ("recent", "2024-12-10"), ("unknown", "")):
+                    book = dict(id=key, title=key, author="", series="", isbn="", tags=[], location_id="")
+                    if stamp:
+                        book["added_on"] = stamp
+                    library["copies"][key] = book
+                library["reading"] = {"recent": {"status": "finished", "dates": ["2024-12-20", "2025-01-10"]}}
+            result = activity(store.read(), date(2025, 1, 15))
+            self.assertEqual((result.copies, result.copies_read, result.finished_this_year, result.undated_copies), (3, 1, 1, 1))
+            self.assertEqual((result.months[0].label, result.months[-1].label), ("Feb 2024", "Jan 2025"))
+            self.assertEqual([(month.added, month.finished) for month in result.months[-2:]], [(1, 1), (0, 1)])
+            self.assertEqual(sum(month.added for month in result.months), 1)
+
     def test_concurrent_updates_and_rollback(self):
         with TemporaryDirectory() as directory:
             path = Path(directory)

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Home · Bookeeper{% endblock %}
+{% block content %}
+{% macro cover(book, size='S') %}
+    {% if book.cover_id %}
+        <img class="home-cover" src="https://covers.openlibrary.org/b/id/{{ book.cover_id }}-{{ size }}.jpg"
+             alt="" loading="lazy" referrerpolicy="no-referrer">
+    {% else %}
+        <span class="home-cover home-placeholder" aria-hidden="true">{{ book.title[0]|upper }}</span>
+    {% endif %}
+{% endmacro %}
+<section class="card home-hero">
+    <div>
+        <p class="eyebrow">Your home library</p>
+        <h1>Find your next book</h1>
+        <form class="home-search" action="{{ url_for('catalog') }}" method="get" role="search">
+            <label for="home-query">Search the catalog</label>
+            <input id="home-query" type="search" name="q" placeholder="Title, author, series, tag or ISBN">
+            <button class="primary" type="submit">Search</button>
+        </form>
+        <nav class="home-actions" aria-label="Quick actions">
+            <a class="button" href="{{ url_for('edit_copy') }}">Add a book</a>
+            <a class="button" href="{{ url_for('edit_copy', _anchor='scanner-controls') }}">Scan an ISBN</a>
+            <a class="button" href="{{ url_for('household.floor') }}">Open floor plans</a>
+        </nav>
+    </div>
+    {% if featured %}
+        <a class="home-feature" href="{{ url_for('edit_copy', copy_id=featured.id) }}">
+            {{ cover(featured, 'M') }}
+            <span><span class="eyebrow">From your shelves</span><strong>{{ featured.title }}</strong>
+                {% if featured.author %}<small>{{ featured.author }}</small>{% endif %}</span>
+        </a>
+    {% endif %}
+</section>
+
+<section class="home-section" aria-labelledby="home-recent">
+    <div class="heading"><h2 id="home-recent">Recent additions</h2><a href="{{ url_for('catalog') }}">Browse the catalog</a></div>
+    {% if recent %}
+        <ul class="home-recent">
+            {% for book in recent %}
+                <li><a class="card home-book" href="{{ url_for('edit_copy', copy_id=book.id) }}">
+                    {{ cover(book) }}
+                    <span><strong>{{ book.title }}</strong>{% if book.author %}<small>{{ book.author }}</small>{% endif %}</span>
+                </a></li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="card">When you add books, they’ll show up here.</p>
+    {% endif %}
+</section>
+
+<div class="home-panels home-section">
+    <section class="card home-stats" aria-labelledby="home-stats">
+        <div class="heading"><h2 id="home-stats">Library activity</h2><a href="{{ url_for('household.stats') }}">All stats</a></div>
+        <dl class="home-metrics">
+            <div><dt>Copies in the library</dt><dd>{{ activity.copies }}</dd></div>
+            <div><dt>Copies read</dt><dd>{{ activity.copies_read }}</dd></div>
+            <div><dt>Reads finished this year</dt><dd>{{ activity.finished_this_year }}</dd></div>
+        </dl>
+        <figure class="home-figure">
+            <figcaption>Books added and reads finished &middot; Last 12 months</figcaption>
+            <div class="home-legend"><span class="added-key">Added</span><span class="finished-key">Finished</span></div>
+            <div class="home-chart" aria-hidden="true">
+                {% for month in activity.months %}
+                    <div class="home-month" title="{{ month.label }}: {{ month.added }} added, {{ month.finished }} finished">
+                        <div class="home-bars">
+                            <span class="added-key" style="--height: {{ (100 * month.added / activity.peak)|round(2) }}%"></span>
+                            <span class="finished-key" style="--height: {{ (100 * month.finished / activity.peak)|round(2) }}%"></span>
+                        </div>
+                        <span class="home-month-label">{{ month.short_label }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+            <details class="home-chart-details">
+                <summary>View monthly counts</summary>
+                <table>
+                    <thead><tr><th scope="col">Month</th><th scope="col">Added</th><th scope="col">Finished</th></tr></thead>
+                    <tbody>{% for month in activity.months %}
+                        <tr><th scope="row">{{ month.label }}</th><td>{{ month.added }}</td><td>{{ month.finished }}</td></tr>
+                    {% endfor %}</tbody>
+                </table>
+            </details>
+            {% if activity.undated_copies %}
+                <p class="muted">{{ activity.undated_copies }} {{ 'copy has' if activity.undated_copies == 1 else 'copies have' }} no recorded addition date and {{ 'is' if activity.undated_copies == 1 else 'are' }} not shown in the “Added” bars.</p>
+            {% endif %}
+            <p class="muted">Finished reads include rereads.</p>
+        </figure>
+    </section>
+
+    <section class="card home-wishlist" aria-labelledby="home-wishlist">
+        <p class="eyebrow">Just for you</p>
+        <h2 id="home-wishlist">My wishlist</h2>
+        {% if wishlist %}
+            <p class="muted">{{ wishlist_count }} {{ 'book' if wishlist_count == 1 else 'books' }} on your list</p>
+            <ul>{% for book in wishlist %}
+                <li><strong>{{ book.title }}</strong>{% if book.author %}<small>{{ book.author }}</small>{% endif %}</li>
+            {% endfor %}</ul>
+        {% else %}
+            <p>No books on your wishlist yet.</p>
+        {% endif %}
+        <a href="{{ url_for('household.wishlist') }}">Open my wishlist</a>
+    </section>
+</div>
+{% endblock %}
