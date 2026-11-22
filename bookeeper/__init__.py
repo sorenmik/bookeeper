@@ -222,7 +222,6 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             reading_status=reading_status,
             reading_statuses=READING_STATUSES,
             loan_status=loan_status,
-            lent=lent,
         )
 
     class CopyFormError(ValueError):

@@ -35,17 +35,16 @@
 </form>
 <p class="muted">{{ copies|length }} {{ 'copy' if copies|length == 1 else 'copies' }}</p>
 {% if copies %}
-    <ul class="cards">
+    <ul class="card compact-list catalog-list" aria-label="Catalog results">
         {% for book in copies %}
-        <li class="card">
-            <h2><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a></h2>
-            {% if book.author %}<p>{{ book.author }}</p>{% endif %}
-            {% if book.series %}<p>Series: {{ book.series }}</p>{% endif %}
-            {% if book.isbn %}<p>ISBN {{ book.isbn }}</p>{% endif %}
-            {% if book.format or book.pages %}<p class="muted">{{ book.format|default('') }}{% if book.format and book.pages %} · {% endif %}{% if book.pages %}{{ book.pages }} pages{% endif %}</p>{% endif %}
-            <p class="location">{{ labels.get(book.location_id, 'Unassigned') }}</p>
-            <p class="muted">{{ reading.get(book.id, {}).get('status', 'unread')|capitalize }}{% if book.id in lent %} · Lent out{% endif %}</p>
-            {% if book.tags %}<p class="muted">{{ book.tags|join(', ') }}</p>{% endif %}
+        {% set status = reading.get(book.id, {}).get('status', 'unread') %}
+        <li>
+            <div class="catalog-title">
+                <h2><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a></h2>
+                {% if book.author %}<p class="muted">{{ book.author }}</p>{% endif %}
+            </div>
+            <p class="catalog-synopsis muted">{{ (book.summary or '')|striptags|truncate(150, false, '…', 0) if book.summary else '' }}</p>
+            <span class="reading-badge status-{{ status }}">{{ status|capitalize }}</span>
         </li>
         {% endfor %}
     </ul>

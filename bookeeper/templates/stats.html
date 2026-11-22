@@ -3,13 +3,46 @@
 {% block content %}
 <h1>Household statistics</h1>
 <div class="cards">
-    <section class="card"><h2>Books finished in {{ year }}</h2><p class="metric">{{ dates|length }}</p><p>Includes rereads</p></section>
-    <section class="card"><h2>Library copies</h2><p class="metric">{{ total }}</p></section>
+    <section class="card"><h2>Reads finished in {{ year }}</h2><p class="metric">{{ activity.finished_this_year }}</p><p>Includes rereads</p></section>
+    <section class="card"><h2>Copies read</h2><p class="metric">{{ activity.copies_read }}</p></section>
+    <section class="card"><h2>Library copies</h2><p class="metric">{{ activity.copies }}</p></section>
 </div>
-<h2>Current reading status</h2>
-<dl class="cards">
-    {% for status, count in counts.items() %}
-        <div class="card"><dt>{{ status|capitalize }}</dt><dd class="metric">{{ count }}</dd></div>
-    {% endfor %}
-</dl>
+<section class="card stats-activity" aria-labelledby="stats-activity">
+    <h2 id="stats-activity">Library activity</h2>
+    {% include "activity-chart.html" %}
+</section>
+<div class="cards">
+    <section class="card" aria-labelledby="stats-status">
+        <h2 id="stats-status">Current reading status</h2>
+        <div class="stats-breakdown">
+            {% set total = activity.copies or 1 %}
+            {% set unread = 100 * counts.unread / total %}
+            {% set reading = unread + 100 * counts.reading / total %}
+            {% set finished = reading + 100 * counts.finished / total %}
+            <div class="status-donut{% if activity.copies %} populated{% endif %}" aria-hidden="true"
+                 style="--unread-end: {{ unread }}%; --reading-end: {{ reading }}%; --finished-end: {{ finished }}%;">
+                <span>{{ activity.copies }}</span>
+            </div>
+            <dl class="stats-status-counts">
+                {% for status, count in counts.items() %}
+                    <div class="status-{{ status }}"><dt>{{ status|capitalize }}</dt><dd>{{ count }}</dd></div>
+                {% endfor %}
+            </dl>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="stats-genres">
+        <h2 id="stats-genres">Top genres</h2>
+        {% if genres %}
+            <ul class="stats-genres">
+                {% for name, count in genres %}
+                    <li>
+                        <span>{{ name }}</span><strong>{{ count }}</strong>
+                        <div class="genre-track" aria-hidden="true"><span style="width: {{ (100 * count / genres[0][1])|round(2) }}%"></span></div>
+                    </li>
+                {% endfor %}
+            </ul>
+            <p class="muted">A copy can count toward more than one genre.</p>
+        {% else %}<p class="muted">Add genres to books to see them here.</p>{% endif %}
+    </section>
+</div>
 {% endblock %}

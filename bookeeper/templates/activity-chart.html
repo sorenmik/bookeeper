@@ -1,0 +1,28 @@
+<figure class="home-figure">
+    <figcaption>Books added and reads finished &middot; Last 12 months</figcaption>
+    <div class="home-legend"><span class="added-key">Added</span><span class="finished-key">Finished</span></div>
+    <div class="home-chart" aria-hidden="true">
+        {% for month in activity.months %}
+            <div class="home-month" title="{{ month.label }}: {{ month.added }} added, {{ month.finished }} finished">
+                <div class="home-bars">
+                    <span class="added-key" style="--height: {{ (100 * month.added / activity.peak)|round(2) }}%"></span>
+                    <span class="finished-key" style="--height: {{ (100 * month.finished / activity.peak)|round(2) }}%"></span>
+                </div>
+                <span class="home-month-label">{{ month.short_label }}</span>
+            </div>
+        {% endfor %}
+    </div>
+    <details class="home-chart-details">
+        <summary>View monthly counts</summary>
+        <table>
+            <thead><tr><th scope="col">Month</th><th scope="col">Added</th><th scope="col">Finished</th></tr></thead>
+            <tbody>{% for month in activity.months %}
+                <tr><th scope="row">{{ month.label }}</th><td>{{ month.added }}</td><td>{{ month.finished }}</td></tr>
+            {% endfor %}</tbody>
+        </table>
+    </details>
+    {% if activity.undated_copies %}
+        <p class="muted">{{ activity.undated_copies }} {{ 'copy has' if activity.undated_copies == 1 else 'copies have' }} no recorded addition date and {{ 'is' if activity.undated_copies == 1 else 'are' }} not shown in the “Added” bars.</p>
+    {% endif %}
+    <p class="muted">Finished reads include rereads.</p>
+</figure>

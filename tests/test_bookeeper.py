@@ -141,7 +141,24 @@ class CatalogTests(unittest.TestCase):
         )
         copy = next(iter(self.store.read()["copies"].values()))
         self.assertEqual((copy["pages"], copy["language"]), (336, "English"))
-        self.assertIn(b"336 pages", self.client.get("/catalog").data)
+        catalog = self.client.get("/catalog")
+        self.assertNotIn(b"336 pages", catalog.data)
+        self.assertIn(b'class="reading-badge status-unread"', catalog.data)
+
+    def test_catalog_synopsis_is_short_and_title_links_to_details(self):
+        self.login()
+        synopsis = "A sample synopsis with useful details. " + "long description " * 12 + "THE VERY END"
+        self.assertEqual(self.post(
+            "/copies/new", title="Example book", author="Example author", summary=synopsis,
+            series="Example series",
+        ).status_code, 302)
+        catalog = self.client.get("/catalog")
+        self.assertIn(b"A sample synopsis with useful details.", catalog.data)
+        self.assertIn(b"Example author", catalog.data)
+        self.assertNotIn(b"THE VERY END", catalog.data)
+        self.assertNotIn(b"Example series", catalog.data)
+        key = next(iter(self.store.read()["copies"]))
+        self.assertIn(b"THE VERY END", self.client.get(f"/copies/{key}/edit").data)
 
 
 class SetupTests(unittest.TestCase):
@@ -236,6 +253,16 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(b"Marking it bought adds another copy.", wishlist.data)
         self.assertIn("no-store", wishlist.headers["Cache-Control"])
 
+    def test_locations_and_wishlist_show_add_forms_only_when_requested(self):
+        self.submit(self.owner, "/locations", kind="room", name="Study")
+        self.submit(self.owner, "/wishlist", title="Wanted title")
+        for path, item, field in (("/locations", b"Study", b'name="name"'), ("/wishlist", b"Wanted title", b'name="title"')):
+            with self.subTest(path=path):
+                listing = self.owner.get(path)
+                self.assertIn(item, listing.data)
+                self.assertNotIn(field, listing.data)
+                self.assertIn(field, self.owner.get(path, query_string={"add": "1"}).data)
+
     def test_home_tracks_additions_without_inventing_legacy_dates(self):
         old_id = self.add_copy("Undated book")
         with self.store.edit() as library:
@@ -265,7 +292,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.submit(self.owner, path, status="finished").status_code, 400)
         for client in (self.member, self.owner):
             self.assertEqual(self.submit(client, path, status="finished", finished=today).status_code, 302)
-        self.assertIn(b'class="metric">2</p>', self.member.get("/stats").data)
+        stats = self.member.get("/stats").data
+        self.assertIn(b'class="metric">2</p>', stats)
+        self.assertIn(b"1 added, 2 finished", stats)
+        self.assertIn(b"Travel", stats)
+        self.assertIn(b'<dt>Finished</dt><dd>1</dd>', stats)
         lent = dict(direction="lent", copy_id=copy_id, person="A friend", started=today)
         self.assertEqual(self.submit(self.member, "/loans", **lent).status_code, 302)
         self.assertEqual(self.submit(self.owner, "/loans", **lent).status_code, 409)
@@ -276,7 +307,13 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.submit(self.owner, f"/loans/{key}/return").status_code, 302)
         self.assertIn(b"River Atlas", self.owner.get("/?reading=finished&loan=available").data)
         self.assertEqual(self.submit(self.member, "/loans", direction="borrowed", title="A borrowed book", person="A friend").status_code, 302)
-        self.assertIn(b"A borrowed book", self.owner.get("/loans").data)
+        with self.store.edit() as library:
+            library["loans"][key]["due"] = today
+        loans = self.owner.get("/loans").data
+        self.assertIn(b"A borrowed book", loans)
+        self.assertNotIn(b'Due date', loans)
+        self.assertNotIn(b"Due " + today.encode(), loans)
+        self.assertEqual(self.store.read()["loans"][key]["due"], today)
 
     def test_owner_snapshot_restore_keeps_private_data_and_exports_csv(self):
         copy_id = self.add_copy("=SUM(1,1)")

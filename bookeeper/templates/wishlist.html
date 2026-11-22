@@ -1,27 +1,42 @@
 {% extends "base.html" %}
+{% from "icons.html" import icon %}
 {% block title %}Wishlist · Bookeeper{% endblock %}
 {% block content %}
-<h1>My wishlist</h1>
-<p>Only your account can see this list. A book moves into the shared catalog when you mark it bought.</p>
-<form class="card fields narrow" method="post">
+{% set adding = request.args.get('add') == '1' %}
+<div class="heading">
+    <h1>{{ 'Add a wish' if adding else 'My wishlist' }}</h1>
+    {% if adding %}
+        <a href="{{ url_for('household.wishlist') }}">Back to wishlist</a>
+    {% else %}
+        <a class="button primary" href="{{ url_for('household.wishlist', add=1) }}">{{ icon('add') }} Add wish</a>
+    {% endif %}
+</div>
+{% if adding %}
+<form class="card fields narrow" method="post" action="{{ url_for('household.wishlist') }}">
     <input type="hidden" name="csrf" value="{{ session.csrf }}">
     <label>Title <input name="title" required maxlength="250"></label>
     <label>Author <input name="author" maxlength="250"></label>
     <label>ISBN (optional) <input name="isbn" maxlength="32"></label>
     <button class="primary" type="submit">Add to wishlist</button>
 </form>
-<ul class="cards">
+{% elif books %}
+<ul class="card compact-list wishlist-list" aria-label="Wishlist entries">
     {% for book in books %}
-    <li class="card">
-        <h2>{{ book.title }}</h2>
-        {% if book.author %}<p>{{ book.author }}</p>{% endif %}
-        {% if book.id in duplicates %}<p>Already in the catalog. Marking it bought adds another copy.</p>{% endif %}
+    <li>
+        <div>
+            <h2>{{ book.title }}</h2>
+            {% if book.author %}<small>{{ book.author }}</small>{% endif %}
+            {% if book.id in duplicates %}<small>Already in the catalog. Marking it bought adds another copy.</small>{% endif %}
+        </div>
         <form class="actions" method="post">
             <input type="hidden" name="csrf" value="{{ session.csrf }}">
             <button type="submit" formaction="{{ url_for('household.change_wishlist', key=book.id, action='bought') }}">Mark bought</button>
             <button type="submit" formaction="{{ url_for('household.change_wishlist', key=book.id, action='remove') }}">Remove</button>
         </form>
     </li>
-    {% else %}<li>Your wishlist is empty.</li>{% endfor %}
+    {% endfor %}
 </ul>
+{% else %}
+    <p class="card">Your wishlist is empty.</p>
+{% endif %}
 {% endblock %}

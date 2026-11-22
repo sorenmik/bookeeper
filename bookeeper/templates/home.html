@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "icons.html" import icon %}
 {% block title %}Home · Bookeeper{% endblock %}
 {% block content %}
 {% macro cover(book, size='S') %}
@@ -16,25 +17,28 @@
         <form class="home-search" action="{{ url_for('catalog') }}" method="get" role="search">
             <label for="home-query">Search the catalog</label>
             <input id="home-query" type="search" name="q" placeholder="Title, author, series, tag or ISBN">
-            <button class="primary" type="submit">Search</button>
+            <button class="primary" type="submit">{{ icon('search') }} Search</button>
         </form>
         <nav class="home-actions" aria-label="Quick actions">
-            <a class="button" href="{{ url_for('edit_copy') }}">Add a book</a>
-            <a class="button" href="{{ url_for('edit_copy', _anchor='scanner-controls') }}">Scan an ISBN</a>
-            <a class="button" href="{{ url_for('household.floor') }}">Open floor plans</a>
+            <a class="button" href="{{ url_for('edit_copy') }}">{{ icon('add') }} Add a book</a>
+            <a class="button" href="{{ url_for('edit_copy', _anchor='scanner-controls') }}">{{ icon('scan') }} Scan an ISBN</a>
+            <a class="button" href="{{ url_for('household.floor') }}">{{ icon('floor') }} Open floor plans</a>
         </nav>
     </div>
-    {% if featured %}
-        <a class="home-feature" href="{{ url_for('edit_copy', copy_id=featured.id) }}">
-            {{ cover(featured, 'M') }}
-            <span><span class="eyebrow">From your shelves</span><strong>{{ featured.title }}</strong>
-                {% if featured.author %}<small>{{ featured.author }}</small>{% endif %}</span>
-        </a>
-    {% endif %}
+    <div class="home-showcase">
+        <img class="home-shelf-art" src="{{ url_for('static', filename='bookshelf.svg') }}" alt="" width="344" height="154">
+        {% if featured %}
+            <a class="home-feature" href="{{ url_for('edit_copy', copy_id=featured.id) }}">
+                {{ cover(featured, 'M') }}
+                <span><span class="eyebrow">From your shelves</span><strong>{{ featured.title }}</strong>
+                    {% if featured.author %}<small>{{ featured.author }}</small>{% endif %}</span>
+            </a>
+        {% endif %}
+    </div>
 </section>
 
 <section class="home-section" aria-labelledby="home-recent">
-    <div class="heading"><h2 id="home-recent">Recent additions</h2><a href="{{ url_for('catalog') }}">Browse the catalog</a></div>
+    <div class="heading"><h2 id="home-recent">{{ icon('catalog') }} Recent additions</h2><a href="{{ url_for('catalog') }}">Browse the catalog</a></div>
     {% if recent %}
         <ul class="home-recent">
             {% for book in recent %}
@@ -51,45 +55,18 @@
 
 <div class="home-panels home-section">
     <section class="card home-stats" aria-labelledby="home-stats">
-        <div class="heading"><h2 id="home-stats">Library activity</h2><a href="{{ url_for('household.stats') }}">All stats</a></div>
+        <div class="heading"><h2 id="home-stats">{{ icon('stats') }} Library activity</h2><a href="{{ url_for('household.stats') }}">All stats</a></div>
         <dl class="home-metrics">
             <div><dt>Copies in the library</dt><dd>{{ activity.copies }}</dd></div>
             <div><dt>Copies read</dt><dd>{{ activity.copies_read }}</dd></div>
             <div><dt>Reads finished this year</dt><dd>{{ activity.finished_this_year }}</dd></div>
         </dl>
-        <figure class="home-figure">
-            <figcaption>Books added and reads finished &middot; Last 12 months</figcaption>
-            <div class="home-legend"><span class="added-key">Added</span><span class="finished-key">Finished</span></div>
-            <div class="home-chart" aria-hidden="true">
-                {% for month in activity.months %}
-                    <div class="home-month" title="{{ month.label }}: {{ month.added }} added, {{ month.finished }} finished">
-                        <div class="home-bars">
-                            <span class="added-key" style="--height: {{ (100 * month.added / activity.peak)|round(2) }}%"></span>
-                            <span class="finished-key" style="--height: {{ (100 * month.finished / activity.peak)|round(2) }}%"></span>
-                        </div>
-                        <span class="home-month-label">{{ month.short_label }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-            <details class="home-chart-details">
-                <summary>View monthly counts</summary>
-                <table>
-                    <thead><tr><th scope="col">Month</th><th scope="col">Added</th><th scope="col">Finished</th></tr></thead>
-                    <tbody>{% for month in activity.months %}
-                        <tr><th scope="row">{{ month.label }}</th><td>{{ month.added }}</td><td>{{ month.finished }}</td></tr>
-                    {% endfor %}</tbody>
-                </table>
-            </details>
-            {% if activity.undated_copies %}
-                <p class="muted">{{ activity.undated_copies }} {{ 'copy has' if activity.undated_copies == 1 else 'copies have' }} no recorded addition date and {{ 'is' if activity.undated_copies == 1 else 'are' }} not shown in the “Added” bars.</p>
-            {% endif %}
-            <p class="muted">Finished reads include rereads.</p>
-        </figure>
+        {% include "activity-chart.html" %}
     </section>
 
     <section class="card home-wishlist" aria-labelledby="home-wishlist">
         <p class="eyebrow">Just for you</p>
-        <h2 id="home-wishlist">My wishlist</h2>
+        <h2 id="home-wishlist">{{ icon('wishlist') }} My wishlist</h2>
         {% if wishlist %}
             <p class="muted">{{ wishlist_count }} {{ 'book' if wishlist_count == 1 else 'books' }} on your list</p>
             <ul>{% for book in wishlist %}

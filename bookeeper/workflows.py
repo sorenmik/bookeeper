@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -7,6 +8,7 @@ import qrcode.image.svg
 from flask import Blueprint, Flask, Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 
 from .catalog import find_duplicate, fold, location_label, normalize_isbn
+from .dashboard import activity
 from .storage import BookCopy, Library, Loan, Reading, Store
 
 
@@ -117,7 +119,9 @@ def register_workflows(app: Flask, store: Store) -> None:
             entries = library.get("loans", {})
             lent = {loan["copy_id"] for loan in entries.values() if not loan["returned"]}
             return render_template(
-                "loans.html", loans=sorted(entries.items(), key=lambda item: (bool(item[1]["returned"]), item[1]["due"])),
+                "loans.html", loans=sorted(
+                    entries.items(), key=lambda item: (not item[1]["returned"], item[1]["started"]), reverse=True,
+                ),
                 available=sorted(
                     (copy for copy in library["copies"].values() if copy["id"] not in lent),
                     key=lambda copy: fold(copy["title"]),
@@ -127,7 +131,6 @@ def register_workflows(app: Flask, store: Store) -> None:
             )
         direction = request.form.get("direction")
         person = request.form.get("person", "").strip()
-        due = request.form.get("due", "")
         started = request.form.get("started", "") or today
         copy_id = request.form.get("copy_id", "")
         title = request.form.get("title", "").strip()
@@ -135,12 +138,10 @@ def register_workflows(app: Flask, store: Store) -> None:
             abort(400, "Choose a loan direction and enter a name up to 120 characters.")
         try:
             iso_date(started)
-            if due:
-                iso_date(due)
         except ValueError:
-            abort(400, "Enter valid loan dates.")
-        if started > today or (due and due < started):
-            abort(400, "The start cannot be in the future and the due date cannot be before the start.")
+            abort(400, "Enter a valid start date.")
+        if started > today:
+            abort(400, "The start cannot be in the future.")
         with store.edit() as library:
             entries = library.setdefault("loans", {})
             if direction == "lent":
@@ -154,7 +155,7 @@ def register_workflows(app: Flask, store: Store) -> None:
             else:
                 copy_id = ""
             entries[uuid4().hex] = Loan(
-                direction=direction, copy_id=copy_id, title=title, person=person, started=started, due=due, returned=""
+                direction=direction, copy_id=copy_id, title=title, person=person, started=started, due="", returned=""
             )
         flash("Loan recorded.", "success")
         return redirect(url_for("household.loans"))
@@ -174,13 +175,23 @@ def register_workflows(app: Flask, store: Store) -> None:
     @pages.get("/stats")
     def stats() -> str:
         library = store.read()
-        year = date.today().year
-        records = library.get("reading", {})
-        dates = [day for record in records.values() for day in record["dates"] if day[:4] == str(year)]
+        today = date.today()
         counts = {status: 0 for status in READING_STATUSES}
-        for key in library["copies"]:
+        genres: Counter[str] = Counter()
+        genre_labels: dict[str, str] = {}
+        for key, book in library["copies"].items():
             counts[reading_for(library, key)["status"]] += 1
-        return render_template("stats.html", counts=counts, dates=dates, year=year, total=len(library["copies"]))
+            subjects = {}
+            for label in book.get("genre", "").split(","):
+                if name := fold(label):
+                    subjects[name] = label.strip()
+            for name, label in subjects.items():
+                genre_labels.setdefault(name, label)
+            genres.update(subjects.keys())
+        return render_template(
+            "stats.html", counts=counts, activity=activity(library, today), year=today.year,
+            genres=[(genre_labels[name], count) for name, count in genres.most_common(6)],
+        )
 
     @pages.get("/sorting")
     def sorting() -> str:

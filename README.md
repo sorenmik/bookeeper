@@ -36,9 +36,14 @@ the server it started. If you prefer to run Flask in the foreground, use
 
 Open <http://127.0.0.1:5000> and sign in. The home page has catalog search,
 recent additions, quick actions, a private wishlist preview, and a monthly
-activity chart. Copies added before date tracking began still count in the
-catalog total but not in the chart’s “Added” series. Under **Locations**, add a
-room, then a bookcase and shelf or a standalone pile. Use **Add a copy** to
+activity chart. The Bookend logo, outline icons, and bookshelf illustration are served
+locally. Dark mode uses near-black surfaces with orange highlights; the Theme
+menu also offers a warm light mode or follows your system setting. Copies added before date
+tracking began still count in the catalog total but not in the chart’s “Added”
+series. The **Stats** tab also shows the reading-status breakdown and top genres.
+Under **Locations**, use **Add location** to create a room, then a bookcase
+and shelf or a standalone pile. Use **Add wish** on the wishlist to open its
+entry form. Use **Add a copy** to
 enter a book manually or look up its ISBN. When Open Library has the data,
 lookup fills blank fields for title, author, summary, genre (suggested from
 subjects), format, pages, publisher, publication date, language, and cover.
