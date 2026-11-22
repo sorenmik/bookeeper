@@ -80,7 +80,12 @@ Install and trust the proxy's local **root certificate** on each device, or
 use a certificate already trusted by the devices. Keep the CA private key on
 the proxy. The Connect QR code uses `BOOKEEPER_PUBLIC_URL`; use that HTTPS URL
 for both signing in and phone scanning. Typing or pasting ISBNs still works
-without the camera. The npm package provides a locally served scanner.
+without the camera. The scanner tells you when the camera is open and when it
+hasn't found an ISBN yet. **Mirror preview** flips only the displayed image,
+not the camera input used for recognition. If the barcode won't scan, tap
+**Read printed ISBN**, line up the printed ISBN label and number in the orange
+guide, then tap the button again. Text recognition runs in your browser;
+camera images are not uploaded. Run `npm ci` to install both scanners locally.
 
 ### Backing up and testing
 

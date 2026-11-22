@@ -179,6 +179,19 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             "html5-qrcode.min.js",
         )
 
+    @app.get("/scanner-ocr/<filename>")
+    def scanner_ocr(filename: str) -> Response:
+        assets = {
+            "tesseract.min.js": Path("tesseract.js") / "dist",
+            "worker.min.js": Path("tesseract.js") / "dist",
+            "tesseract-core-lstm.wasm.js": Path("tesseract.js-core"),
+            "eng.traineddata.gz": Path("@tesseract.js-data") / "eng" / "4.0.0_best_int",
+        }
+        directory = assets.get(filename)
+        if directory is None:
+            abort(404)
+        return send_from_directory(Path(app.root_path).parent / "node_modules" / directory, filename)
+
     @app.get("/")
     def home() -> str:
         if any(field in request.args for field in ("q", "location", "reading", "loan")):

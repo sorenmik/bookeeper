@@ -17,11 +17,19 @@
     <label>Series <input name="series" value="{{ book.series }}" maxlength="250"></label>
     <label>ISBN (optional) <input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
     <small id="isbn-help">Lookup fills blank fields using Open Library. Subjects are used as a genre suggestion.</small>
-    <div id="scanner-controls" data-reader="{{ url_for('scanner') }}">
+    <div id="scanner-controls" data-reader="{{ url_for('scanner') }}"
+         data-ocr="{{ url_for('scanner_ocr', filename='tesseract.min.js') }}">
         <button type="button" id="scan-start">Scan ISBN with camera</button>
+        <button type="button" id="scan-text" hidden>Read printed ISBN</button>
         <button type="button" id="scan-stop" hidden>Stop camera</button>
+        <div id="scan-preview-options" hidden>
+            <label class="check"><input type="checkbox" id="scan-mirror"> Mirror preview</label>
+        </div>
         <p id="scan-status" role="status"></p>
-        <div id="scan-view" hidden></div>
+        <div class="scan-frame">
+            <div id="scan-view" hidden></div>
+            <span class="scan-guide" aria-hidden="true"></span>
+        </div>
     </div>
     <label>Genre <input name="genre" value="{{ book.genre|default('') }}" maxlength="80"></label>
     <label>Format <input name="format" value="{{ book.format|default('') }}" maxlength="80" placeholder="Hardcover, paperback, ebook…"></label>
