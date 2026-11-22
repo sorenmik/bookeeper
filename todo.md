@@ -1,0 +1,46 @@
+# Bookeeper
+
+I need a book library management software to keep track of my books in my home library.
+
+It should be a webpage made in Python.
+
+
+## Features
+
+- Add/edit/remove/update books from library
+    - Add books by scanning ISBN barcodes live with the camera on iPhone or Android. Serve the app over HTTPS with a certificate the phone trusts, and allow typing or pasting the ISBN as a fallback.
+    - Add books manually when they have no ISBN or the ISBN lookup fails.
+    - Warn when the book is already in the library, but allow adding another copy as a separate inventory item.
+- Look up book details and summaries by ISBN using Open Library. Enter missing details manually and show the location of any owned copies.
+- Search page for finding books by title, author, series, tag, or ISBN. Filter by room, shelf, reading status, or loan status.
+- Wishlist for books I want to buy. When I mark a book as bought, automatically move it from the wishlist into the inventory.
+- Use a drag-and-drop floor plan for each room, with movable bookcases and standalone piles. Show the room, bookcase, and shelf (or pile) where a copy is located.
+    - Allow adding, naming, and removing shelves within each bookcase.
+    - Posibillity to add personal notes to books
+- Page where the software can recommend how to sort the books by genre, type, author etc
+- Reading history with statuses (unread, reading, finished, abandoned) and a finish date for each read, including rereads.
+- Stats page where I can see library statistics. How many books have I read this year etc
+- Page showing books I have borrowed from others or lent out etc
+- Make a small QR code on the page, so I can scan it with a phone and go the the page (in case the page runs at an obscure IP addr)
+- Backup page, where I can make snapshots of database and download database for backup and migration
+    - Restore the library from a backup snapshot.
+    - Export the catalog as a CSV file that opens in spreadsheet apps.
+
+
+## Graphical
+
+- We need light and dark mode
+- Flatpak/flathub layout looking
+
+
+## Software stack
+
+- Store library data in a local JSON file. Serialize read-modify-write operations and replace the file atomically to avoid lost or partial updates when multiple household members edit it.
+- Build the website in Python using Flask and Jinja templates.
+- Runs in browser as webpage
+    - For PC and mobile devices
+    - Initially accessible only on the home network, with no public access. Keep the data location configurable so the app can move to a server or cloud host later.
+    - Give household members separate sign-ins to the same shared library.
+- Use a python .venv to run in
+- Start a git-project locally to help track changes
+
