@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Locations · Bookeeper{% endblock %}
+{% block content %}
+<h1>Locations</h1>
+<p>Set up rooms, then add bookcases and piles. Add shelves inside bookcases.</p>
+{% macro add_form(kind, choices=[]) %}
+    <form class="card fields" method="post" action="{{ url_for('add_location') }}">
+        <h2>Add a {{ kind }}</h2>
+        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+        <input type="hidden" name="kind" value="{{ kind }}">
+        <label>Name <input name="name" required maxlength="80"></label>
+        {% if choices %}
+            <label>{{ 'Bookcase' if kind == 'shelf' else 'Room' }}
+                <select name="parent_id" required>
+                    {% for item in choices %}
+                        <option value="{{ item.id }}">{{ labels[item.id] }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        {% endif %}
+        <button type="submit">Add {{ kind }}</button>
+    </form>
+{% endmacro %}
+{% set rooms = locations.values()|selectattr('kind', 'equalto', 'room')|list %}
+{% set bookcases = locations.values()|selectattr('kind', 'equalto', 'bookcase')|list %}
+<div class="cards">
+    {{ add_form('room') }}
+    {% if rooms %}
+        {{ add_form('bookcase', rooms) }}
+        {{ add_form('pile', rooms) }}
+    {% endif %}
+    {% if bookcases %}{{ add_form('shelf', bookcases) }}{% endif %}
+</div>
+{% if labels %}
+<h2>Current locations</h2>
+<ul class="location-list card">
+    {% for key, label in labels|dictsort(by='value') %}
+    <li>
+        <a href="{{ url_for('catalog', location=key) }}">{{ label }}</a>
+        <span class="muted">{{ locations[key].kind }}</span>
+        <form action="{{ url_for('delete_location', location_id=key) }}" method="post">
+            <input type="hidden" name="csrf" value="{{ session.csrf }}">
+            <button type="submit" aria-label="Remove {{ label }}">Remove</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

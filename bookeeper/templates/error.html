@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Bookeeper · Unable to continue{% endblock %}
+{% block content %}
+<h1>Unable to continue</h1>
+<p role="alert">{{ message }}</p>
+<p><a href="{{ url_for('catalog') }}">Back to the catalog</a></p>
+{% endblock %}

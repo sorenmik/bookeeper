@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Bookeeper{% endblock %}
+{% block content %}
+<section class="card narrow">
+    <h1>Sign in</h1>
+    {% if not has_users %}
+        <p>No accounts yet. Create your first household account from the host computer using the setup instructions.</p>
+    {% endif %}
+    <form method="post" class="fields">
+        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+        <label>Username <input name="username" autocomplete="username" required maxlength="40"></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" required maxlength="256"></label>
+        <button class="primary" type="submit">Sign in</button>
+    </form>
+</section>
+{% endblock %}

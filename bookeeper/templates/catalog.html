@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Catalog · Bookeeper{% endblock %}
+{% block content %}
+<div class="heading">
+    <h1>Library catalog</h1>
+    <a class="button primary" href="{{ url_for('edit_copy') }}">Add a copy</a>
+</div>
+<form method="get" class="filters card" role="search">
+    <label>Find books
+        <input type="search" name="q" value="{{ query }}" placeholder="Title, author, series, tag or ISBN">
+    </label>
+    <label>Location
+        <select name="location">
+            <option value="">Everywhere</option>
+            {% for key, label in labels|dictsort(by='value') %}
+                <option value="{{ key }}" {% if selected == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="submit">Search</button>
+    {% if query or selected %}<a href="{{ url_for('catalog') }}">Clear filters</a>{% endif %}
+</form>
+<p class="muted">{{ copies|length }} {{ 'copy' if copies|length == 1 else 'copies' }}</p>
+{% if copies %}
+    <ul class="cards">
+        {% for book in copies %}
+        <li class="card">
+            <h2><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a></h2>
+            {% if book.author %}<p>{{ book.author }}</p>{% endif %}
+            {% if book.series %}<p>Series: {{ book.series }}</p>{% endif %}
+            {% if book.isbn %}<p>ISBN {{ book.isbn }}</p>{% endif %}
+            <p class="location">{{ labels.get(book.location_id, 'Unassigned') }}</p>
+            {% if book.tags %}<p class="muted">{{ book.tags|join(', ') }}</p>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p class="card">{{ 'No copies match these filters.' if query or selected else 'Your catalog is empty. Add a copy to get started.' }}</p>
+{% endif %}
+{% endblock %}
