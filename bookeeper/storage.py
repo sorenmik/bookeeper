@@ -32,6 +32,11 @@ class BookCopy(TypedDict):
     summary: NotRequired[str]
     genre: NotRequired[str]
     format: NotRequired[str]
+    publisher: NotRequired[str]
+    publication_date: NotRequired[str]
+    language: NotRequired[str]
+    pages: NotRequired[int | None]
+    cover_id: NotRequired[int | None]
 
 
 class Reading(TypedDict):

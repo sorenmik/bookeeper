@@ -16,11 +16,13 @@ from .catalog import (
     COPY_LOCATIONS,
     LOCATION_PARENTS,
     LookupUnavailable,
+    fill_book_metadata,
     find_duplicate,
     fold,
     location_label,
     lookup_isbn,
     normalize_isbn,
+    positive_number,
     search_copies,
 )
 from .workflows import READING_STATUSES, reading_for, register_workflows
@@ -230,6 +232,11 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                 summary=request.form.get("summary", "").strip(),
                 genre=request.form.get("genre", "").strip(),
                 format=request.form.get("format", "").strip(),
+                publisher=request.form.get("publisher", "").strip(),
+                publication_date=request.form.get("publication_date", "").strip(),
+                language=request.form.get("language", "").strip(),
+                pages=positive_number(request.form.get("pages", "")),
+                cover_id=positive_number(request.form.get("cover_id", "")),
             )
             action = request.form.get("action", "save")
             try:
@@ -238,10 +245,16 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                         raise CopyFormError("Enter an ISBN before looking up the book.")
                 elif not book["title"]:
                     raise CopyFormError("Enter a title.")
-                if any(len(field) > 250 for field in (book["title"], book["author"], book["series"])):
-                    raise CopyFormError("Title, author and series must each be at most 250 characters.")
-                if len(book["summary"]) > 5000 or max(len(book["genre"]), len(book["format"])) > 80:
-                    raise CopyFormError("Summary is limited to 5,000 characters; genre and format to 80 each.")
+                if any(len(field) > 250 for field in (book["title"], book["author"], book["series"], book["publisher"])):
+                    raise CopyFormError("Title, author, series and publisher must each be at most 250 characters.")
+                if len(book["summary"]) > 5000:
+                    raise CopyFormError("Summary is limited to 5,000 characters.")
+                if any(len(field) > 80 for field in (book["genre"], book["format"], book["publication_date"], book["language"])):
+                    raise CopyFormError("Genre, format, publication date and language are limited to 80 characters each.")
+                if request.form.get("pages", "").strip() and book["pages"] is None:
+                    raise CopyFormError("Enter a positive whole number for pages, or leave it blank.")
+                if request.form.get("cover_id", "").strip() and book["cover_id"] is None:
+                    raise CopyFormError("Enter a positive Open Library cover ID, or leave it blank.")
                 if len(book["tags"]) > 30 or any(len(tag) > 60 for tag in book["tags"]):
                     raise CopyFormError("Use at most 30 tags, each at most 60 characters.")
                 if book["isbn"]:
@@ -258,12 +271,8 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                         if match is None:
                             notice = "Open Library did not find this ISBN. You can enter the details manually."
                         else:
-                            title, author, *details = match
-                            book["title"] = book["title"] or title
-                            book["author"] = book["author"] or author
-                            if details:
-                                book["summary"] = book["summary"] or details[0]
-                            notice = "ISBN found. Review the details and save the copy when ready."
+                            book = fill_book_metadata(book, match)
+                            notice = "ISBN found. Review the details and fill in anything Open Library left blank before saving."
                 else:
                     with store.edit() as latest:
                         if copy_id is not None and copy_id not in latest["copies"]:

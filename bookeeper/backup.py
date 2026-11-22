@@ -9,12 +9,16 @@ from uuid import uuid4
 
 from flask import Blueprint, Flask, Response, abort, flash, g, redirect, render_template, request, send_file, url_for
 
-from .catalog import COPY_LOCATIONS, LOCATION_PARENTS, location_label
+from .catalog import COPY_LOCATIONS, LOCATION_PARENTS, location_label, positive_number
 from .storage import Library, Store
 from .workflows import READING_STATUSES, iso_date
 
 MAX_BACKUP = 16 * 1024 * 1024
 SNAPSHOT = re.compile(r"bookeeper-\d{8}T\d{6}-[a-f0-9]{8}\.json")
+CATALOG_FIELDS = (
+    "title", "author", "series", "isbn", "genre", "format", "summary", "publisher", "publication_date",
+    "language", "pages", "cover_id",
+)
 
 
 def validate_backup(data: bytes) -> dict:
@@ -50,11 +54,15 @@ def validate_backup(data: bytes) -> dict:
         for axis in ("x", "y"):
             need(axis not in item or type(item[axis]) is int and 0 <= item[axis] <= 100)
     for key, book in copies.items():
-        need(set(book) <= {"id", "title", "author", "series", "isbn", "location_id", "tags", "summary", "genre", "format"})
+        need(set(book) <= {"id", "location_id", "tags", *CATALOG_FIELDS})
         need(strings(book, "id", "title", "author", "series", "isbn", "location_id") and book["id"] == key)
         need(bool(book["title"].strip()) and isinstance(book.get("tags"), list))
         need(all(isinstance(tag, str) for tag in book["tags"]))
-        need(all(field not in book or isinstance(book[field], str) for field in ("summary", "genre", "format")))
+        for field in ("summary", "genre", "format", "publisher", "publication_date", "language"):
+            need(field not in book or isinstance(book[field], str))
+        for field in ("pages", "cover_id"):
+            value = book.get(field)
+            need(value is None or (type(value) is int and positive_number(value) is not None))
         location = book["location_id"]
         need(not location or location in locations and locations[location]["kind"] in COPY_LOCATIONS)
     for key, item in reading.items():
@@ -168,10 +176,9 @@ def register_backups(app: Flask, store: Store) -> None:
         library = store.read()
         output = io.StringIO(newline="")
         writer = csv.writer(output)
-        fields = ("title", "author", "series", "isbn", "genre", "format", "summary")
-        writer.writerow([*fields, "tags", "location"])
+        writer.writerow([*CATALOG_FIELDS, "tags", "location"])
         for book in library["copies"].values():
-            writer.writerow([csv_cell(book.get(field, "")) for field in fields] + [
+            writer.writerow([csv_cell(str(book.get(field) or "")) for field in CATALOG_FIELDS] + [
                 csv_cell(", ".join(book["tags"])),
                 csv_cell(location_label(book["location_id"], library["locations"])),
             ])

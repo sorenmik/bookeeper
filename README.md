@@ -36,8 +36,10 @@ the server it started. If you prefer to run Flask in the foreground, use
 
 Open <http://127.0.0.1:5000> and sign in. Under **Locations**, add a
 room, then a bookcase and shelf or a standalone pile. Use **Add a copy** to
-enter a book manually or use its ISBN to fill in the title and author from Open
-Library. A copy can also be left unassigned.
+enter a book manually or look up its ISBN. When Open Library has the data,
+lookup fills blank fields for title, author, summary, genre (suggested from
+subjects), format, pages, publisher, publication date, language, and cover.
+Review the details before saving. A copy can also be left unassigned.
 
 ### Phone access over home-network HTTPS
 

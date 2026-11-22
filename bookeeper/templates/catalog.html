@@ -42,6 +42,7 @@
             {% if book.author %}<p>{{ book.author }}</p>{% endif %}
             {% if book.series %}<p>Series: {{ book.series }}</p>{% endif %}
             {% if book.isbn %}<p>ISBN {{ book.isbn }}</p>{% endif %}
+            {% if book.format or book.pages %}<p class="muted">{{ book.format|default('') }}{% if book.format and book.pages %} · {% endif %}{% if book.pages %}{{ book.pages }} pages{% endif %}</p>{% endif %}
             <p class="location">{{ labels.get(book.location_id, 'Unassigned') }}</p>
             <p class="muted">{{ reading.get(book.id, {}).get('status', 'unread')|capitalize }}{% if book.id in lent %} · Lent out{% endif %}</p>
             {% if book.tags %}<p class="muted">{{ book.tags|join(', ') }}</p>{% endif %}

@@ -9,7 +9,7 @@ from unittest.mock import Mock, call, patch
 from urllib.parse import parse_qs, urlsplit
 
 from bookeeper import create_app
-from bookeeper.catalog import LookupUnavailable, lookup_isbn, normalize_isbn
+from bookeeper.catalog import BookMetadata, LookupUnavailable, lookup_isbn, normalize_isbn
 from bookeeper.service import Service
 from bookeeper.storage import Store
 
@@ -120,19 +120,27 @@ class CatalogTests(unittest.TestCase):
 
     def test_isbn_lookup_is_a_preview_and_failure_allows_manual_entry(self):
         self.login()
-        with patch("bookeeper.lookup_isbn", return_value=("Remote title", "Remote author")) as fetch:
-            result = self.post("/copies/new", action="lookup", isbn="0-14-143951-3", title="My title")
+        details = BookMetadata("Remote title", "Remote author", genre="Classics", format="Paperback",
+                               pages=336, publisher="Example Press", publication_date="2020", language="English", cover_id=123)
+        with patch("bookeeper.lookup_isbn", return_value=details) as fetch:
+            result = self.post("/copies/new", action="lookup", isbn="0-14-143951-3", title="My title", genre="My genre")
         fetch.assert_called_once_with("9780141439518")
         self.assertEqual(result.status_code, 200)
         self.assertIn(b'value="My title"', result.data)
         self.assertIn(b'value="Remote author"', result.data)
+        self.assertIn(b'value="My genre"', result.data)
+        for value in (b"Paperback", b"336", b"Example Press", b"2020", b"English", b"123"):
+            self.assertIn(b'value="' + value + b'"', result.data)
         self.assertFalse(self.store.read()["copies"])
         with patch("bookeeper.lookup_isbn", side_effect=LookupUnavailable):
             unavailable = self.post("/copies/new", action="lookup", isbn="9780141439518")
         self.assertIn(b"enter the details manually", unavailable.data)
         self.assertEqual(
-            self.post("/copies/new", isbn="9780141439518", title="Manual title").status_code, 302
+            self.post("/copies/new", isbn="9780141439518", title="Manual title", pages="336", language="English").status_code, 302
         )
+        copy = next(iter(self.store.read()["copies"].values()))
+        self.assertEqual((copy["pages"], copy["language"]), (336, "English"))
+        self.assertIn(b"336 pages", self.client.get("/").data)
 
 
 class SetupTests(unittest.TestCase):
@@ -301,12 +309,13 @@ class DataTests(unittest.TestCase):
     def test_open_library_query_and_response(self):
         key = "ISBN:9780141439518"
         payload = {key: {"title": "Pride and Prejudice", "authors": [{"name": "Jane Austen"}]}}
-        with patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as fetch:
-            self.assertEqual(lookup_isbn("9780141439518"), ("Pride and Prejudice", "Jane Austen"))
-        url = urlsplit(fetch.call_args.args[0].full_url)
+        responses = [io.BytesIO(json.dumps(payload).encode()), io.BytesIO(b"{}")]
+        with patch("bookeeper.catalog.urlopen", side_effect=responses) as fetch:
+            self.assertEqual(lookup_isbn("9780141439518"), BookMetadata("Pride and Prejudice", "Jane Austen"))
+        url = urlsplit(fetch.call_args_list[0].args[0].full_url)
         self.assertEqual((url.scheme, url.netloc, url.path), ("https", "openlibrary.org", "/api/books"))
         self.assertEqual(parse_qs(url.query), {"bibkeys": [key], "format": ["json"], "jscmd": ["data"]})
-        with patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(b"{}")):
+        with patch("bookeeper.catalog.urlopen", side_effect=[io.BytesIO(b"{}"), io.BytesIO(b"{}")]):
             self.assertIsNone(lookup_isbn("9780141439518"))
         self.assertEqual(normalize_isbn("080442957X"), "9780804429573")
 
@@ -314,13 +323,31 @@ class DataTests(unittest.TestCase):
         key = "ISBN:9780141439518"
         payloads = [
             {key: {"title": "Pride and Prejudice", "url": "https://openlibrary.org/books/OL1M/Pride_and_Prejudice"}},
-            {"works": [{"key": "/works/OL2W"}]},
-            {"description": {"value": "A work summary"}},
+            {"works": [{"key": "/works/OL2W"}], "physical_format": "Paperback", "publishers": ["Example Press"],
+             "publish_date": "2020", "pagination": "336 p.", "covers": [-1, 123]},
+            {"description": {"value": "A work summary"}, "subjects": ["Literature", "Classic fiction"]},
         ]
         responses = [io.BytesIO(json.dumps(payload).encode()) for payload in payloads]
         with patch("bookeeper.catalog.urlopen", side_effect=responses) as fetch:
-            self.assertEqual(lookup_isbn("9780141439518"), ("Pride and Prejudice", "", "A work summary"))
+            self.assertEqual(lookup_isbn("9780141439518"), BookMetadata(
+                "Pride and Prejudice", summary="A work summary", genre="Literature, Classic fiction",
+                format="Paperback", publisher="Example Press", publication_date="2020", pages=336, cover_id=123,
+            ))
         self.assertTrue(fetch.call_args.args[0].full_url.endswith("/works/OL2W.json"))
+
+    def test_open_library_edition_fallback_resolves_author_and_language(self):
+        edition = {
+            "title": "The Denial of Death", "type": {"key": "/type/edition"},
+            "pagination": "336", "subjects": ["Humanism", "Consolation"],
+            "authors": [{"key": "/authors/OL2002958A"}], "languages": [{"key": "/languages/eng"}],
+        }
+        with patch("bookeeper.catalog._open_library", side_effect=[
+            LookupUnavailable, edition, {"name": "Ernest Becker"}, {"name": "English"},
+        ]):
+            result = lookup_isbn("9781788164269")
+        self.assertEqual(result, BookMetadata(
+            "The Denial of Death", "Ernest Becker", genre="Humanism, Consolation", pages=336, language="English",
+        ))
 
 
 if __name__ == "__main__":

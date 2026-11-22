@@ -1,7 +1,10 @@
 import json
+import logging
 import re
 from collections.abc import Iterable
-from urllib.error import URLError
+from dataclasses import dataclass
+from functools import lru_cache
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -21,12 +24,30 @@ class LookupUnavailable(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class BookMetadata:
+    title: str
+    author: str = ""
+    summary: str = ""
+    genre: str = ""
+    format: str = ""
+    publisher: str = ""
+    publication_date: str = ""
+    language: str = ""
+    pages: int | None = None
+    cover_id: int | None = None
+
+
 def _open_library(path: str) -> dict:
     request = Request(f"https://openlibrary.org{path}", headers={"Accept": "application/json"})
     try:
         with urlopen(request, timeout=5) as response:
             data = response.read(256 * 1024 + 1)
         payload = json.loads(data) if len(data) <= 256 * 1024 else None
+    except HTTPError as exc:
+        if exc.code == 404:
+            return {}
+        raise LookupUnavailable from exc
     except (URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise LookupUnavailable from exc
     if not isinstance(payload, dict):
@@ -44,44 +65,142 @@ def _summary(record: dict) -> str:
     return ""
 
 
-def lookup_isbn(isbn: str) -> tuple[str, str] | tuple[str, str, str] | None:
+def _text(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _items(value: object) -> list:
+    return value if isinstance(value, list) else []
+
+
+def _names(items: object) -> list[str]:
+    return [
+        name for item in _items(items)
+        if (name := _text(item.get("name") if isinstance(item, dict) else item))
+    ]
+
+
+def _limited_names(names: list[str], limit: int) -> str:
+    result = ""
+    for name in dict.fromkeys(names):
+        combined = f"{result}, {name}" if result else name
+        if len(combined) > limit:
+            return result or name[:limit]
+        result = combined
+    return result
+
+
+def _optional_record(path: str) -> dict:
+    try:
+        return _open_library(path)
+    except LookupUnavailable:
+        logging.getLogger(__name__).warning("Open Library did not return optional metadata for %s.", path)
+        return {}
+
+
+@lru_cache(maxsize=128)
+def _language_name(path: str) -> str:
+    # Do not cache a network failure as a language name.
+    return _text(_open_library(path + ".json").get("name")) or path.rsplit("/", 1)[-1]
+
+
+def positive_number(value: object) -> int | None:
+    if type(value) is int and 0 < value <= 999_999_999:
+        return value
+    if isinstance(value, str) and re.fullmatch(r"[0-9]{1,9}", value.strip()):
+        return int(value) or None
+    return None
+
+
+def lookup_isbn(isbn: str) -> BookMetadata | None:
     key = f"ISBN:{isbn}"
     query = urlencode({"bibkeys": key, "format": "json", "jscmd": "data"})
-    payload = _open_library(f"/api/books?{query}")
-    if key not in payload:
+    error = None
+    try:
+        book = _open_library(f"/api/books?{query}").get(key, {})
+        if not isinstance(book, dict):
+            raise LookupUnavailable("Invalid Open Library ISBN response.")
+    except LookupUnavailable as exc:
+        book, error = {}, exc
+
+    edition_path = _text(book.get("key"))
+    if not re.fullmatch(r"/books/OL[0-9]+M", edition_path):
+        url_match = re.search(r"(/books/OL[0-9]+M)(?:/|$)", _text(book.get("url")))
+        edition_path = url_match.group(1) if url_match else ""
+    try:
+        edition = _open_library(f"{edition_path or f'/isbn/{isbn}'}.json")
+    except LookupUnavailable as exc:
+        if not book:
+            raise exc from error
+        logging.getLogger(__name__).warning("Open Library edition details unavailable for ISBN %s.", isbn)
+        edition = {}
+    if not book and not edition:
+        if error:
+            raise error
         return None
-    book = payload[key]
-    if not isinstance(book, dict) or not isinstance(book.get("title"), str):
-        raise LookupUnavailable
-    authors = book.get("authors", [])
-    if not isinstance(authors, list):
-        raise LookupUnavailable
-    names = [
-        item["name"].strip()
-        for item in authors
-        if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"].strip()
-    ]
-    title = book["title"].strip()
+
+    title = _text(book.get("title")) or _text(edition.get("title"))
     if not title:
-        raise LookupUnavailable
-    result = title[:250], ", ".join(names)[:250]
-    summary = _summary(book)
-    edition = book.get("key")
-    if not edition and isinstance(book.get("url"), str):
-        edition = re.search(r"(/books/OL[0-9]+M)(?:/|$)", book["url"])
-        edition = edition.group(1) if edition else None
-    if not summary and isinstance(edition, str) and re.fullmatch(r"/books/OL[0-9]+M", edition):
-        try:
-            record = _open_library(edition + ".json")
-            summary = _summary(record)
-            works = record.get("works")
-            if not summary and isinstance(works, list) and works and isinstance(works[0], dict):
-                key = works[0].get("key")
-                if isinstance(key, str) and re.fullmatch(r"/works/OL[0-9]+W", key):
-                    summary = _summary(_open_library(key + ".json"))
-        except LookupUnavailable:
-            pass  # The ISBN metadata is still useful if the optional summary is unavailable.
-    return (*result, summary) if summary else result
+        raise LookupUnavailable("Open Library returned a record without a title.")
+    works = _items(edition.get("works"))
+    work_path = _text(works[0].get("key")) if works and isinstance(works[0], dict) else ""
+    summary = _summary(edition) or _summary(book)
+    subjects = _names(edition.get("subjects")) or _names(book.get("subjects"))
+    if re.fullmatch(r"/works/OL[0-9]+W", work_path) and (not summary or not subjects):
+        work = _optional_record(work_path + ".json")
+        summary = summary or _summary(work)
+        subjects = subjects or _names(work.get("subjects"))
+
+    authors = _names(book.get("authors"))
+    if not authors:
+        for entry in _items(edition.get("authors"))[:5]:
+            path = _text(entry.get("key")) if isinstance(entry, dict) else ""
+            if re.fullmatch(r"/authors/OL[0-9]+A", path):
+                name = _text(_optional_record(path + ".json").get("name"))
+                if name:
+                    authors.append(name)
+    languages = []
+    for entry in _items(edition.get("languages"))[:5]:
+        path = _text(entry.get("key")) if isinstance(entry, dict) else ""
+        if re.fullmatch(r"/languages/[a-z]{3}", path):
+            try:
+                languages.append(_language_name(path))
+            except LookupUnavailable:
+                logging.getLogger(__name__).warning("Open Library language name unavailable for %s.", path)
+                languages.append(path.rsplit("/", 1)[-1])
+    pages = positive_number(edition.get("number_of_pages")) or positive_number(book.get("number_of_pages"))
+    if pages is None:
+        pagination = re.fullmatch(r"([0-9]{1,9})(?:\s*(?:p\.?|pages))?", _text(edition.get("pagination")), re.I)
+        pages = positive_number(pagination.group(1)) if pagination else None
+    cover_id = next((cover for item in _items(edition.get("covers")) if (cover := positive_number(item))), None)
+    if cover_id is None and isinstance(cover := book.get("cover"), dict):
+        for size in ("large", "medium", "small"):
+            match = re.fullmatch(r"https?://covers\.openlibrary\.org/b/id/([0-9]{1,9})-[SML]\.jpg", _text(cover.get(size)))
+            if match and (cover_id := positive_number(match.group(1))):
+                break
+    return BookMetadata(
+        title=title[:250], author=_limited_names(authors, 250), summary=summary,
+        genre=_limited_names(subjects, 80), format=(_text(edition.get("physical_format")) or _text(book.get("physical_format")))[:80],
+        publisher=_limited_names(_names(edition.get("publishers")) or _names(book.get("publishers")), 250),
+        publication_date=(_text(edition.get("publish_date")) or _text(book.get("publish_date")))[:80],
+        language=_limited_names(languages or _names(book.get("languages")), 80), pages=pages, cover_id=cover_id,
+    )
+
+
+def fill_book_metadata(book: BookCopy, metadata: BookMetadata) -> BookCopy:
+    return {
+        **book,
+        "title": book["title"] or metadata.title,
+        "author": book["author"] or metadata.author,
+        "summary": book.get("summary") or metadata.summary,
+        "genre": book.get("genre") or metadata.genre,
+        "format": book.get("format") or metadata.format,
+        "publisher": book.get("publisher") or metadata.publisher,
+        "publication_date": book.get("publication_date") or metadata.publication_date,
+        "language": book.get("language") or metadata.language,
+        "pages": book.get("pages") or metadata.pages,
+        "cover_id": book.get("cover_id") or metadata.cover_id,
+    }
 
 
 def normalize_isbn(value: str) -> str:
