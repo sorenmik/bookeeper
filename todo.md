@@ -13,13 +13,13 @@ It should be a webpage made in Python.
     - Warn when the book is already in the library, but allow adding another copy as a separate inventory item.
 - Look up book details and summaries by ISBN using Open Library. Enter missing details manually and show the location of any owned copies.
 - Search page for finding books by title, author, series, tag, or ISBN. Filter by room, shelf, reading status, or loan status.
-- Wishlist for books I want to buy. When I mark a book as bought, automatically move it from the wishlist into the inventory.
+- Each household account has its own private wishlist. When a member marks a book as bought, automatically move it from their wishlist into the shared inventory.
 - Use a drag-and-drop floor plan for each room, with movable bookcases and standalone piles. Show the room, bookcase, and shelf (or pile) where a copy is located.
     - Allow adding, naming, and removing shelves within each bookcase.
     - Posibillity to add personal notes to books
 - Page where the software can recommend how to sort the books by genre, type, author etc
-- Reading history with statuses (unread, reading, finished, abandoned) and a finish date for each read, including rereads.
-- Stats page where I can see library statistics. How many books have I read this year etc
+- Shared household reading history with statuses (unread, reading, finished, abandoned) and a finish date for each read, including rereads.
+- Stats page for the shared library, including how many books the household finished this year.
 - Page showing books I have borrowed from others or lent out etc
 - Make a small QR code on the page, so I can scan it with a phone and go the the page (in case the page runs at an obscure IP addr)
 - Backup page, where I can make snapshots of database and download database for backup and migration
