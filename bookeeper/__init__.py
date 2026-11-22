@@ -48,11 +48,9 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
 
     fallback_hash = generate_password_hash(secrets.token_hex(24))
 
-    @app.cli.command("add-user")
-    @click.argument("username")
-    @click.password_option()
-    def add_user(username: str, password: str) -> None:
-        """Create a household sign-in from the host computer."""
+    existing_accounts = "An account already exists. Use add-user to create another household sign-in."
+
+    def save_user(username: str, password: str, *, first_only: bool = False) -> None:
         username = username.lower()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,39}", username):
             raise click.ClickException("Use 1 to 40 letters, digits, dots, dashes or underscores.")
@@ -60,10 +58,28 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             raise click.ClickException("Use a password between 12 and 256 characters.")
         password_hash = generate_password_hash(password)
         with store.edit() as library:
+            if first_only and library["users"]:
+                raise click.ClickException(existing_accounts)
             if username in library["users"]:
                 raise click.ClickException("That username already exists.")
             library["users"][username] = password_hash
         click.echo(f"Created account: {username}")
+
+    @app.cli.command("add-user")
+    @click.argument("username")
+    @click.password_option()
+    def add_user(username: str, password: str) -> None:
+        """Create a household sign-in from the host computer."""
+        save_user(username, password)
+
+    @app.cli.command("create-first-user")
+    def create_first_user() -> None:
+        """Set up the first household sign-in from the host computer."""
+        if store.read()["users"]:
+            raise click.ClickException(existing_accounts)
+        username = click.prompt("Username")
+        password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
+        save_user(username, password, first_only=True)
 
     @app.before_request
     def load_user() -> Response | None:

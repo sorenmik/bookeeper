@@ -119,6 +119,30 @@ class CatalogTests(unittest.TestCase):
         )
 
 
+class SetupTests(unittest.TestCase):
+    def test_first_account_can_sign_in_and_setup_cannot_be_repeated(self):
+        with TemporaryDirectory() as directory:
+            app = create_app({"TESTING": True, "DATA_DIR": directory})
+            runner = app.test_cli_runner()
+            result = runner.invoke(args=["create-first-user"], input=f"Owner\n{PASSWORD}\n{PASSWORD}\n")
+            self.assertEqual(result.exit_code, 0, result.output)
+            self.assertIn("Created account: owner", result.output)
+            self.assertNotIn(PASSWORD, result.output)
+
+            client = app.test_client()
+            client.get("/login")
+            with client.session_transaction() as session:
+                csrf = session["csrf"]
+            login = client.post("/login", data={"csrf": csrf, "username": "owner", "password": PASSWORD})
+            self.assertEqual(login.location, "/")
+
+            repeated = runner.invoke(args=["create-first-user"], input=f"Other\n{PASSWORD}\n{PASSWORD}\n")
+            self.assertNotEqual(repeated.exit_code, 0)
+            self.assertIn("An account already exists.", repeated.output)
+            self.assertNotIn("Username:", repeated.output)
+            self.assertEqual(set(Store(Path(directory)).read()["users"]), {"owner"})
+
+
 class DataTests(unittest.TestCase):
     def test_concurrent_updates_and_rollback(self):
         with TemporaryDirectory() as directory:

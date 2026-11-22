@@ -11,17 +11,20 @@ From the project folder in PowerShell:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m flask --app bookeeper add-user alice
 ```
-
-The `add-user` command prompts for a password. Run it once per household
-member.
 
 Then open Git Bash in the project folder and run:
 
 ```bash
+bash create-admin.sh
 bash service.sh
 ```
+
+The setup script prompts for a username and a password of at least 12 characters.
+It only works before any account exists. Bookeeper does not yet distinguish
+admin and household permissions. To add another household member, run
+`.\.venv\Scripts\python.exe -m flask --app bookeeper add-user alice` in PowerShell,
+replacing `alice` with their username.
 
 The menu shows the current status. Choose **1** to start Bookeeper in the
 background, **2** to stop it, or **0** to exit without changes. Run the same
