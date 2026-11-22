@@ -14,22 +14,25 @@
     <header>
         <nav class="main-nav" aria-label="Main navigation">
             <a class="brand" href="{{ url_for('home') }}"{% if request.endpoint == 'home' and not request.args %} aria-current="page"{% endif %}><img src="{{ url_for('static', filename='logo.svg') }}" width="34" height="34" alt=""> Bookeeper</a>
-            {% if g.user %}
-                {% for endpoint, symbol, label in (
-                    ('catalog', 'catalog', 'Catalog'), ('locations', 'location', 'Locations'),
-                    ('household.wishlist', 'wishlist', 'Wishlist'), ('household.loans', 'loans', 'Loans'),
-                    ('household.stats', 'stats', 'Stats'), ('household.sorting', 'sorting', 'Sorting'),
-                    ('backups.index', 'backup', 'Backup')
-                ) if endpoint != 'backups.index' or g.owner %}
-                    <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ icon(symbol) }} {{ label }}</a>
-                {% endfor %}
-                <a class="qr-link" href="{{ url_for('household.connect') }}"{% if request.endpoint == 'household.connect' %} aria-current="page"{% endif %}><img src="{{ url_for('household.qr') }}" width="27" height="27" alt=""> Connect</a>
-                <form class="account" action="{{ url_for('logout') }}" method="post">
-                    <input type="hidden" name="csrf" value="{{ session.csrf }}">
-                    <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
-                </form>
-            {% endif %}
-            <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+            <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-menu" hidden>{{ icon('menu') }} Menu</button>
+            <div class="nav-panel" id="site-menu">
+                {% if g.user %}
+                    {% for endpoint, symbol, label in (
+                        ('catalog', 'catalog', 'Catalog'), ('locations', 'location', 'Locations'),
+                        ('household.wishlist', 'wishlist', 'Wishlist'), ('household.loans', 'loans', 'Loans'),
+                        ('household.stats', 'stats', 'Stats'), ('household.sorting', 'sorting', 'Sorting'),
+                        ('backups.index', 'backup', 'Backup')
+                    ) if endpoint != 'backups.index' or g.owner %}
+                        <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ icon(symbol) }} {{ label }}</a>
+                    {% endfor %}
+                    <a class="qr-link" href="{{ url_for('household.connect') }}"{% if request.endpoint == 'household.connect' %} aria-current="page"{% endif %}><img src="{{ url_for('household.qr') }}" width="27" height="27" alt=""> Connect</a>
+                    <form class="account" action="{{ url_for('logout') }}" method="post">
+                        <input type="hidden" name="csrf" value="{{ session.csrf }}">
+                        <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
+                    </form>
+                {% endif %}
+                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+            </div>
         </nav>
     </header>
     <main>

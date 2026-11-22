@@ -61,15 +61,38 @@ nav, .heading, .actions { display: flex; flex-wrap: wrap; align-items: center; g
     scrollbar-width: thin;
 }
 .main-nav > * { flex-shrink: 0; }
-.main-nav > a, .account button { display: inline-flex; align-items: center; gap: .3rem; }
+.main-nav > .brand, .nav-panel > a, .account button { display: inline-flex; align-items: center; gap: .3rem; }
 .main-nav > .brand { gap: .5rem; margin-inline-end: .45rem; }
-.main-nav > a:not(.brand) { padding: .35rem .5rem; border-radius: .45rem; color: var(--muted); text-decoration: none; }
-.main-nav > a:not(.brand):is(:hover, [aria-current="page"]) {
+.nav-toggle { display: none; }
+.nav-panel { display: flex; flex: 1 0 auto; align-items: center; gap: inherit; }
+.nav-panel > a { padding: .35rem .5rem; border-radius: .45rem; color: var(--muted); text-decoration: none; }
+.nav-panel > a:is(:hover, [aria-current="page"]) {
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
-.main-nav a:not(.brand) .ui-icon, .theme-control .ui-icon { color: var(--accent); }
+.nav-panel a .ui-icon, .theme-control .ui-icon { color: var(--accent); }
 .account { margin-inline-start: auto; }
+@media (max-width: 76rem) {
+    .main-nav { flex-wrap: wrap; overflow: visible; }
+    .nav-toggle:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        min-height: 2.75rem;
+        margin-inline-start: auto;
+    }
+    .nav-toggle:not([hidden])[aria-expanded="false"] + .nav-panel { display: none; }
+    .nav-panel {
+        flex: 1 1 100%;
+        flex-direction: column;
+        align-items: stretch;
+        padding-block-start: .5rem;
+        border-block-start: 1px solid var(--line);
+    }
+    .nav-panel > a { min-height: 2.75rem; }
+    .nav-panel .account { margin-inline-start: 0; }
+    .nav-panel .theme-control select { width: auto; }
+}
 .heading { justify-content: space-between; margin-bottom: 0.75rem; }
 h1, h2 { margin: 0 0 0.6rem; line-height: 1.25; }
 h1 { font-size: clamp(1.65rem, 4vw, 2.4rem); }

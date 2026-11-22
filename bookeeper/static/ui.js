@@ -17,6 +17,21 @@ theme.addEventListener("change", () => {
     }
 });
 
+const navToggle = document.querySelector(".nav-toggle");
+if (navToggle) {
+    navToggle.hidden = false;
+    navToggle.addEventListener("click", () => {
+        navToggle.setAttribute("aria-expanded", String(navToggle.getAttribute("aria-expanded") !== "true"));
+    });
+    navToggle.closest("nav").addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && navToggle.getAttribute("aria-expanded") === "true" && navToggle.offsetWidth) {
+            event.preventDefault();
+            navToggle.setAttribute("aria-expanded", "false");
+            navToggle.focus();
+        }
+    });
+}
+
 for (const item of document.querySelectorAll(".map-token")) {
     const floor = item.closest(".floor");
     const status = floor.parentElement.querySelector(".floor-status");
