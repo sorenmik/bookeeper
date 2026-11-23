@@ -17,6 +17,7 @@ from bookeeper.quotes import (
     refresh_quote, wikiquote_lines,
 )
 from bookeeper.service import Service
+from bookeeper.version import build_version
 from bookeeper.storage import Store
 
 
@@ -456,6 +457,21 @@ class QuoteTests(unittest.TestCase):
             client.get("/")
             self.assertTrue(done.wait(5))
         refresh.assert_called_once()
+
+
+class VersionTests(unittest.TestCase):
+    def test_version_shows_short_commit_time_and_dirty_marker(self):
+        outputs = {"log": "3fa9c1e\t2026-11-23T12:10:00+00:00", "status": " M file.py"}
+        with patch("bookeeper.version._git", side_effect=lambda command, *_: outputs[command]):
+            version = build_version()
+        self.assertTrue(version.startswith("3fa9c1e+ · 2026-11-23 "))
+        with patch("bookeeper.version._git", side_effect=FileNotFoundError):
+            self.assertEqual(build_version(), "")
+
+    def test_footer_shows_the_version(self):
+        with TemporaryDirectory() as directory, patch("bookeeper.build_version", return_value="3fa9c1e · 2026-11-23 12:10"):
+            page = create_app({"TESTING": True, "DATA_DIR": directory}).test_client().get("/login")
+        self.assertIn(b"Version 3fa9c1e", page.data)
 
 
 class DataTests(unittest.TestCase):

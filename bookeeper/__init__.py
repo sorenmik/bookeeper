@@ -31,6 +31,7 @@ from .workflows import READING_STATUSES, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
 from .dashboard import activity
 from .quotes import needs_refresh, quote_for_display, refresh_quote
+from .version import build_version
 from .storage import BookCopy, LocationKind, Store
 
 
@@ -57,6 +58,11 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         app.secret_key = key
 
     fallback_hash = generate_password_hash(secrets.token_hex(24))
+    version = build_version()
+
+    @app.context_processor
+    def inject_version() -> dict[str, str]:
+        return {"build_version": version}
 
     quotes_enabled = bool(app.config.get("QUOTES", os.environ.get("BOOKEEPER_QUOTES") != "0" and not app.testing))
     quote_lookup = Lock()
