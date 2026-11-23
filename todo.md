@@ -39,7 +39,9 @@ It should be a webpage made in Python.
 
 ## Graphical
 
-- We need light and dark mode
+- Themes:
+    - Simple: near-black surfaces with orange highlights (default).
+    - Burnley, 1657: an old English monastery library. Monks reading while drinking an ale, scrolls, parchment, and candlelight.
 - Flatpak/flathub layout looking
 
 

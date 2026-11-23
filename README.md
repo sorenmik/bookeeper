@@ -38,8 +38,9 @@ Open <http://127.0.0.1:5000> and sign in. The home page has catalog search,
 recent additions, quick actions, a private wishlist preview, and a monthly
 activity chart. The Bookend logo, outline icons, and bookshelf illustration are served
 locally. On smaller screens, tap **Menu** to open navigation and theme settings.
-Dark mode uses near-black surfaces with orange highlights; the Theme
-menu also offers a warm light mode or follows your system setting. Copies added before date
+The default **Simple** theme uses near-black surfaces with orange highlights. The Theme
+menu also offers **Burnley, 1657**: a candlelit monastery scriptorium with parchment folios,
+blackletter headings, illuminated capitals, and monks reading over their ale. Copies added before date
 tracking began still count in the catalog total but not in the chart’s “Added”
 series. The **Stats** tab also shows the reading-status breakdown and top genres.
 Under **Locations**, use **Add location** to create a room, then a bookcase

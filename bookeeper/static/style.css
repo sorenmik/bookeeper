@@ -1,21 +1,6 @@
 :root {
-    color-scheme: light dark;
+    color-scheme: dark;
     font: 100%/1.5 system-ui, sans-serif;
-    --page: #f5f3f0;
-    --surface: #fff;
-    --deep: #1c1713;
-    --text: #241e1a;
-    --muted: #62564e;
-    --line: #dfd7d0;
-    --control-line: #92847a;
-    --accent: #a43b0c;
-    --on-accent: #fff;
-    --chart-secondary: #625970;
-    --danger: #9a2e2a;
-}
-:root[data-theme="light"] { color-scheme: light; }
-:root[data-theme="dark"] { color-scheme: dark; }
-:root[data-theme="dark"] {
     --page: #0b0b0b;
     --surface: #171717;
     --deep: #0b0b0b;
@@ -27,21 +12,6 @@
     --on-accent: #1c1009;
     --chart-secondary: #bdb0cf;
     --danger: #ffb9b0;
-}
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"], [data-theme="dark"]) {
-        --page: #0b0b0b;
-        --surface: #171717;
-        --deep: #0b0b0b;
-        --text: #f6f2ee;
-        --muted: #b9b0a9;
-        --line: #35312f;
-        --control-line: #736a64;
-        --accent: #ff9050;
-        --on-accent: #1c1009;
-        --chart-secondary: #bdb0cf;
-        --danger: #ffb9b0;
-    }
 }
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; color: var(--text); background: var(--page); }
@@ -295,4 +265,243 @@ summary { cursor: pointer; }
     .catalog-synopsis { grid-row: 2; grid-column: 1 / -1; }
     .catalog-synopsis:empty { display: none; }
     .reading-badge { grid-column: 2; grid-row: 1; align-self: start; }
+}
+
+/* Theme: Burnley, 1657 — a candlelit monastery scriptorium. */
+.burnley-art, .colophon { display: none; }
+:root[data-theme="burnley"] {
+    color-scheme: light;
+    --blackletter: "Old English Text MT", "UnifrakturMaguntia", "UnifrakturCook", "Cloister Black", "Goudy Text MT", "Luminari", "Palatino Linotype", serif;
+    --book-hand: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", "Goudy Old Style", Georgia, serif;
+    --page: #ecdcb8;
+    --surface: #f5e9cc;
+    --deep: #2a1a0e;
+    --text: #2b1d12;
+    --muted: #654c33;
+    --line: #c8ab7d;
+    --control-line: #8b6b43;
+    --accent: #7a1f1a;
+    --on-accent: #f8ecd0;
+    --chart-secondary: #284b7a;
+    --danger: #8a1c12;
+    --gold: #b8862b;
+    --leaf: #e2b04a;
+    --oak: #3b2614;
+    --status-finished: #2f5a3a;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .28 0 0 0 0 .1 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    font-family: var(--book-hand);
+    font-size: 106%;
+    scrollbar-color: var(--gold) var(--oak);
+}
+:root[data-theme="burnley"] ::selection { color: var(--deep); background: color-mix(in srgb, var(--leaf) 70%, transparent); }
+:root[data-theme="burnley"] body {
+    background-color: #24160b;
+    background-image:
+        radial-gradient(ellipse at 50% -10%, rgb(255 196 110 / 22%), transparent 60%),
+        repeating-linear-gradient(91deg, rgb(255 220 160 / 3%) 0 2px, transparent 2px 9px),
+        repeating-linear-gradient(89deg, rgb(0 0 0 / 22%) 0 1px, transparent 1px 27px),
+        linear-gradient(#3a2413, #1a0f07);
+    background-attachment: fixed;
+}
+
+/* The oak beam overhead */
+:root[data-theme="burnley"] header {
+    --surface: var(--oak);
+    --text: #f3e2b8;
+    --muted: #e3c995;
+    --accent: var(--leaf);
+    --line: #5a3b1f;
+    --control-line: #a07a42;
+    color: var(--text);
+    background:
+        repeating-linear-gradient(90deg, rgb(0 0 0 / 14%) 0 1px, transparent 1px 13px),
+        linear-gradient(#4a301a, #2c1b0d);
+    border-bottom: 3px double var(--gold);
+    box-shadow: 0 .4rem 1.2rem rgb(0 0 0 / 45%);
+}
+:root[data-theme="burnley"] .brand {
+    font-family: var(--blackletter);
+    font-size: 1.6rem;
+    font-weight: 400;
+    color: var(--leaf);
+    text-shadow: 0 1px 0 #000, 0 0 .6rem rgb(226 176 74 / 35%);
+}
+:root[data-theme="burnley"] .brand img { filter: sepia(.9) saturate(1.6) hue-rotate(-10deg); }
+:root[data-theme="burnley"] .main-nav { font-size: .82rem; gap: .2rem; }
+:root[data-theme="burnley"] .nav-panel > a { font-variant: small-caps; }
+:root[data-theme="burnley"] .nav-panel > a:is(:hover, [aria-current="page"]) {
+    color: var(--deep);
+    background: linear-gradient(var(--leaf), #b8862b);
+    box-shadow: inset 0 0 0 1px #6b4a1a;
+}
+:root[data-theme="burnley"] .nav-panel > a:is(:hover, [aria-current="page"]) .ui-icon { color: var(--deep); }
+
+/* The folio on the reading desk */
+:root[data-theme="burnley"] main {
+    margin: 1.5rem auto 0;
+    padding: clamp(1rem, 3.5vw, 2.75rem);
+    background-color: var(--page);
+    background-image:
+        var(--grain),
+        radial-gradient(ellipse at 15% 10%, rgb(255 246 220 / 70%), transparent 55%),
+        radial-gradient(ellipse at 85% 95%, rgb(150 100 40 / 18%), transparent 50%);
+    border: 1px solid #8b6b43;
+    border-radius: .2rem .2rem .6rem .6rem;
+    box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 60%), inset 0 0 4.5rem rgb(122 80 30 / 32%);
+}
+:root[data-theme="burnley"] :is(h1, h2) { color: var(--deep); }
+:root[data-theme="burnley"] h1 {
+    display: flow-root;
+    font-family: var(--blackletter);
+    font-weight: 400;
+    letter-spacing: .01em;
+}
+:root[data-theme="burnley"] h1::first-letter {
+    float: left;
+    margin: .02em .12em 0 0;
+    padding: .02em .14em;
+    font-size: 1.5em;
+    line-height: 1;
+    color: var(--leaf);
+    background: var(--accent);
+    border: 2px solid var(--gold);
+    box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 3px var(--leaf);
+    text-shadow: 0 1px 0 #3a0c09;
+}
+:root[data-theme="burnley"] h2 { font-variant: small-caps; letter-spacing: .03em; font-weight: 700; }
+:root[data-theme="burnley"] .heading { padding-bottom: .35rem; border-bottom: 3px double var(--line); }
+:root[data-theme="burnley"] .eyebrow { font-variant: small-caps; text-transform: none; font-size: .95rem; letter-spacing: .12em; }
+:root[data-theme="burnley"] .eyebrow::before { content: "\2720\00a0"; content: "\2720\00a0" / ""; color: var(--gold); }
+:root[data-theme="burnley"] a { text-decoration-color: color-mix(in srgb, var(--gold) 70%, transparent); text-underline-offset: .18em; }
+:root[data-theme="burnley"] main a:not(.button):hover { color: #a0281f; }
+
+/* Vellum leaves */
+:root[data-theme="burnley"] .card {
+    position: relative;
+    background-color: var(--surface);
+    background-image: var(--grain), linear-gradient(160deg, rgb(255 250 235 / 55%), transparent 45%);
+    border: 3px double var(--control-line);
+    border-radius: .25rem;
+    box-shadow: inset 0 0 2rem rgb(120 80 30 / 16%), 0 .25rem .7rem rgb(60 30 8 / 22%);
+}
+:root[data-theme="burnley"] :is(.card, .notice)::after {
+    content: "\2766";
+    content: "\2766" / "";
+    position: absolute;
+    top: .1rem;
+    right: .4rem;
+    color: var(--gold);
+    font-size: 1.1rem;
+    opacity: .55;
+    pointer-events: none;
+}
+:root[data-theme="burnley"] :is(.compact-list, .home-book)::after { content: none; }
+
+/* Unrolled scroll for notices */
+:root[data-theme="burnley"] .notice {
+    position: relative;
+    padding-inline: 1.5rem 2rem;
+    background-color: #f8edd2;
+    background-image: var(--grain), linear-gradient(90deg, #c9ad7c, transparent .9rem, transparent calc(100% - .9rem), #c9ad7c);
+    border: 1px solid var(--control-line);
+    border-inline-start: 1px solid var(--control-line);
+    border-radius: .9rem;
+    box-shadow: 0 .15rem .5rem rgb(60 30 8 / 25%);
+}
+
+/* Quills, inkwells and wax */
+:root[data-theme="burnley"] :is(input, select, textarea) {
+    background: #fbf4e1;
+    border-color: var(--control-line);
+    border-radius: .15rem;
+    box-shadow: inset 0 1px 3px rgb(80 50 20 / 18%);
+}
+:root[data-theme="burnley"] header select { background: #2a1a0d; color: var(--text); }
+:root[data-theme="burnley"] :is(button, .button) {
+    border-radius: .2rem;
+    background: linear-gradient(#f8eed4, #e3cfa3);
+    border-color: #8b6b43;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%), 0 1px 2px rgb(60 30 8 / 30%);
+    font-variant: small-caps;
+    letter-spacing: .03em;
+}
+:root[data-theme="burnley"] header :is(button, .button) { background: linear-gradient(#5a3b20, #3b2614); color: var(--text); }
+:root[data-theme="burnley"] :is(button, .button):hover { border-color: var(--accent); }
+:root[data-theme="burnley"] .primary {
+    color: var(--on-accent);
+    background: radial-gradient(circle at 35% 30%, #a8352b, #7a1f1a 55%, #5a130f);
+    border: 1px solid #4a0f0b;
+    box-shadow: inset 0 0 0 2px rgb(226 176 74 / 45%), 0 .15rem .35rem rgb(60 10 5 / 40%);
+    text-shadow: 0 1px 0 #3a0c09;
+}
+:root[data-theme="burnley"] :focus-visible { outline-color: var(--gold); }
+:root[data-theme="burnley"] header :focus-visible { outline-color: var(--leaf); }
+
+/* Home: candlelight over the hero, the scriptorium instead of the shelf */
+:root[data-theme="burnley"] .home-hero {
+    background-image:
+        var(--grain),
+        radial-gradient(ellipse at 92% 8%, rgb(255 205 120 / 55%), transparent 55%),
+        linear-gradient(var(--surface), var(--surface));
+}
+:root[data-theme="burnley"] .home-shelf-art:not(.burnley-art) { display: none; }
+:root[data-theme="burnley"] .burnley-art { display: block; background: #1d130b; }
+:root[data-theme="burnley"] .home-showcase { border: 3px double var(--control-line); border-radius: .25rem; }
+:root[data-theme="burnley"] .home-cover { filter: sepia(.35) contrast(1.05); }
+:root[data-theme="burnley"] .home-placeholder {
+    font-family: var(--blackletter);
+    font-weight: 400;
+    font-size: 1.5rem;
+    color: var(--leaf);
+    background: repeating-linear-gradient(180deg, transparent 0 .55rem, rgb(226 176 74 / 55%) .55rem .65rem, transparent .65rem 3.2rem), linear-gradient(90deg, #4a0f0b, #7a1f1a 40%, #5a130f);
+    border-inline-start: .35rem solid #3a0c09;
+    filter: none;
+}
+:root[data-theme="burnley"] .home-recent li:nth-child(3n + 2) .home-placeholder { color: var(--leaf); background: repeating-linear-gradient(180deg, transparent 0 .55rem, rgb(226 176 74 / 55%) .55rem .65rem, transparent .65rem 3.2rem), linear-gradient(90deg, #17301d, #2f5a3a 40%, #1f3d27); }
+:root[data-theme="burnley"] .home-recent li:nth-child(3n) .home-placeholder { color: var(--leaf); background: repeating-linear-gradient(180deg, transparent 0 .55rem, rgb(226 176 74 / 55%) .55rem .65rem, transparent .65rem 3.2rem), linear-gradient(90deg, #15243d, #284b7a 40%, #1b3357); }
+:root[data-theme="burnley"] :is(.home-metrics div, .genre-track) { background: rgb(139 107 67 / 14%); }
+:root[data-theme="burnley"] :is(.home-metrics dd, .metric) { font-family: var(--blackletter); font-weight: 400; color: var(--accent); }
+:root[data-theme="burnley"] .reading-badge { font-variant: small-caps; background: rgb(255 250 235 / 60%); }
+
+/* Floor plans: flagstones and oak presses */
+:root[data-theme="burnley"] .floor {
+    background-color: #a8987c;
+    background-image:
+        var(--grain),
+        linear-gradient(#6f6250 2px, transparent 2px),
+        linear-gradient(90deg, #6f6250 2px, transparent 2px);
+    background-size: auto, 3rem 2rem, 3rem 2rem;
+    border: 4px solid #5a4630;
+    box-shadow: inset 0 0 2.5rem rgb(30 20 10 / 45%);
+}
+:root[data-theme="burnley"] .map-token {
+    color: #f3e2b8;
+    background: repeating-linear-gradient(90deg, rgb(0 0 0 / 15%) 0 1px, transparent 1px 7px), linear-gradient(#6b4423, #3b2614);
+    border: 1px solid #1a0f07;
+    box-shadow: inset 0 0 0 2px rgb(226 176 74 / 35%), 0 .2rem .4rem rgb(0 0 0 / 40%);
+}
+
+/* Colophon */
+:root[data-theme="burnley"] .colophon {
+    display: grid;
+    justify-items: center;
+    gap: .25rem;
+    padding: 1.5rem 1rem 2rem;
+    color: #d9c08e;
+    text-align: center;
+    font-variant: small-caps;
+    letter-spacing: .06em;
+}
+:root[data-theme="burnley"] .colophon img { border: 3px double var(--gold); border-radius: .25rem; }
+:root[data-theme="burnley"] .colophon span { font-family: var(--blackletter); font-variant: normal; font-size: 1.25rem; color: var(--leaf); }
+:root[data-theme="burnley"] .colophon p { margin: 0; }
+@media (min-width: 42rem) {
+    /* Ruled rubric margins along the folio */
+    :root[data-theme="burnley"] main {
+        background-image:
+            linear-gradient(90deg, transparent .9rem, rgb(122 31 26 / 30%) .9rem calc(.9rem + 1px), transparent calc(.9rem + 1px) 1.2rem, rgb(122 31 26 / 30%) 1.2rem calc(1.2rem + 1px), transparent calc(1.2rem + 1px)),
+            var(--grain),
+            radial-gradient(ellipse at 15% 10%, rgb(255 246 220 / 70%), transparent 55%),
+            radial-gradient(ellipse at 85% 95%, rgb(150 100 40 / 18%), transparent 50%);
+    }
 }

@@ -27,6 +27,7 @@
     </div>
     <div class="home-showcase">
         <img class="home-shelf-art" src="{{ url_for('static', filename='bookshelf.svg') }}" alt="" width="344" height="154">
+        <img class="home-shelf-art burnley-art" src="{{ url_for('static', filename='scriptorium.svg') }}" alt="" width="344" height="154" loading="lazy">
         {% if featured %}
             <a class="home-feature" href="{{ url_for('edit_copy', copy_id=featured.id) }}">
                 {{ cover(featured, 'M') }}

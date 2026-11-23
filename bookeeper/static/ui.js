@@ -1,13 +1,8 @@
 "use strict";
 
 const theme = document.querySelector("#theme");
-try {
-    theme.value = localStorage.getItem("bookeeper-theme") || "auto";
-} catch {
-    theme.value = "auto";
-}
-if (!theme.value) theme.value = "auto";
-document.documentElement.dataset.theme = theme.value;
+theme.value = document.documentElement.dataset.theme;
+if (!theme.value) theme.value = document.documentElement.dataset.theme = "simple";
 theme.addEventListener("change", () => {
     document.documentElement.dataset.theme = theme.value;
     try {
