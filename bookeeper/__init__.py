@@ -225,7 +225,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             "home.html",
             featured=next((book for book in books if book.get("cover_id")), books[0] if books else None),
             quote=quote_for_display(library) if quotes_enabled else None,
-            recent=books[:6],
+            recent=books[:8],
             wishlist=wishlist[:4],
             wishlist_count=len(wishlist),
             activity=activity(library, date.today()),
