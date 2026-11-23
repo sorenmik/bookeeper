@@ -422,7 +422,9 @@ summary { cursor: pointer; }
     border-radius: .15rem;
     box-shadow: inset 0 1px 3px rgb(80 50 20 / 18%);
 }
-:root[data-theme="burnley"] header select { background: #2a1a0d; color: var(--text); }
+:root[data-theme="burnley"] header select { background: #2a1a0d; color: var(--text); color-scheme: dark; }
+:root[data-theme="burnley"] header option { color: #f3e2b8; background: #2a1a0d; }
+:root[data-theme="burnley"] header option:is(:hover, :checked, :focus, :active) { color: #1a0f07 !important; background: #e2b04a linear-gradient(#e2b04a, #e2b04a) !important; }
 :root[data-theme="burnley"] :is(button, .button) {
     border-radius: .2rem;
     background: linear-gradient(#f8eed4, #e3cfa3);
