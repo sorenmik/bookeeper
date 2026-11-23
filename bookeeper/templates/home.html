@@ -44,6 +44,17 @@
     </div>
 </section>
 
+{% if quote %}
+<figure class="card home-quote home-section">
+    <p class="eyebrow">Quote of the day</p>
+    <blockquote><p>{{ quote.text }}</p></blockquote>
+    <figcaption>
+        — {% if quote.title %}{{ quote.title }} - {% endif %}{{ quote.author }}
+        <small>Source: <a href="{{ quote.url }}" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ quote.source }}</a>{% if quote.source == 'Wikiquote' %} (CC BY-SA){% endif %}</small>
+    </figcaption>
+</figure>
+{% endif %}
+
 <section class="home-section" aria-labelledby="home-recent">
     <div class="heading"><h2 id="home-recent">{{ icon('catalog') }} Recent additions</h2><a href="{{ url_for('catalog') }}">Browse the catalog</a></div>
     {% if recent %}

@@ -2,15 +2,20 @@ import io
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Event
 from unittest.mock import Mock, call, patch
 from urllib.parse import parse_qs, urlsplit
 
 from bookeeper import create_app
 from bookeeper.catalog import BookMetadata, LookupUnavailable, lookup_isbn, normalize_isbn
 from bookeeper.dashboard import activity
+from bookeeper.quotes import (
+    Quote, Unavailable, _display_name, _title_variants, fallback_quote, gutenberg_sentences, needs_refresh,
+    refresh_quote, wikiquote_lines,
+)
 from bookeeper.service import Service
 from bookeeper.storage import Store
 
@@ -350,6 +355,107 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(qr.mimetype, "image/svg+xml")
         self.assertIn(b"<svg", qr.data)
         self.assertIn(b"River Atlas", self.owner.get("/sorting?by=genre&by=").data)
+
+
+class QuoteTests(unittest.TestCase):
+    WIKITEXT = (
+        "== Quotes ==\n* It is a truth universally acknowledged, that a single man in possession of a good fortune.\n"
+        "** ''Chapter 1''\n* Short.\n== Misattributed ==\n"
+        "* This misattributed line is long enough to be considered a quote by length alone, but must be skipped.\n"
+        "== Quotes about [[Pride and Prejudice|the book]] ==\n"
+        "* Somebody else said something rather long about the book, which is not a quote from the book itself.\n"
+    )
+
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.store = Store(Path(directory.name))
+        self.app = create_app({"TESTING": True, "DATA_DIR": directory.name, "QUOTES": True})
+        self.app.test_cli_runner().invoke(args=["add-user", "alice"], input=f"{PASSWORD}\n{PASSWORD}\n")
+        with self.store.edit() as library:
+            library["copies"]["a" * 32] = {
+                "id": "a" * 32, "title": "Pride and Prejudice", "author": "Jane Austen", "series": "",
+                "isbn": "", "tags": [], "location_id": "",
+            }
+
+    def test_wikiquote_parsing_skips_doubtful_sections(self):
+        self.assertEqual(wikiquote_lines(self.WIKITEXT), [
+            "It is a truth universally acknowledged, that a single man in possession of a good fortune.",
+        ])
+        author_page = "== Works ==\n=== Emma ===\n" + self.WIKITEXT.replace("== Quotes ==", "==== Quotes ====")
+        author_page += "== Pride and Prejudice (1813) ==\n* A line that is only found in the section for the requested novel.\n"
+        self.assertEqual(
+            wikiquote_lines(author_page, "Pride and Prejudice"),
+            ["A line that is only found in the section for the requested novel."],
+        )
+
+    def test_gutenberg_sentences_avoid_fragments(self):
+        text = (
+            "*** START OF THE PROJECT GUTENBERG EBOOK ***\n\n" + "Filler paragraph here. " * 40 + "\n\n"
+            "Mr. Darcy walked across the quiet room and looked out at the long grey road beyond the garden wall.\n\n"
+            "\"Come here,\" said she, and so it went on for quite some considerable while after that.\n\n"
+            + "More filler text goes here. " * 40 + "\n*** END OF THE PROJECT GUTENBERG EBOOK ***\n"
+        )
+        self.assertEqual(gutenberg_sentences(text), [
+            "Mr. Darcy walked across the quiet room and looked out at the long grey road beyond the garden wall.",
+        ])
+
+    def test_refresh_falls_back_to_gutenberg_and_remembers_misses(self):
+        today = date(2026, 5, 1)
+        miss, hit = Mock(return_value=None), Mock(return_value=Quote("A real sentence.", "Project Gutenberg", "https://www.gutenberg.org/ebooks/1342"))
+        sources = (("wikiquote", miss), ("gutenberg", hit))
+        self.assertTrue(refresh_quote(self.store, today, sources=sources))
+        library = self.store.read()
+        self.assertEqual(library["quote"]["title"], "Pride and Prejudice")
+        self.assertIn("wikiquote:pride and prejudice|jane austen", library["quote_state"]["misses"])
+        self.assertFalse(needs_refresh(library, today, datetime.now(UTC)))
+        self.assertFalse(needs_refresh(library, today, datetime.now(UTC) + timedelta(hours=3)))
+        self.assertFalse(refresh_quote(self.store, today + timedelta(days=1), sources=sources[:1]))
+        self.assertEqual(miss.call_count, 1)
+        self.assertEqual(self.store.read()["quote"], fallback_quote(today + timedelta(days=1)))
+
+    def test_failures_fall_back_to_a_famous_quote_once_per_day(self):
+        today = date(2026, 5, 1)
+        offline = Mock(side_effect=Unavailable)
+        self.assertFalse(refresh_quote(self.store, today, sources=(("wikiquote", offline),)))
+        library = self.store.read()
+        self.assertEqual(library["quote"], fallback_quote(today))
+        self.assertEqual(library["quote"]["title"], "")
+        self.assertFalse(needs_refresh(library, today, datetime.now(UTC) + timedelta(hours=2)))
+        self.assertTrue(needs_refresh(library, today + timedelta(days=1), datetime.now(UTC) + timedelta(hours=2)))
+        self.assertEqual(len({fallback_quote(today + timedelta(days=n))["text"] for n in range(200)}), 200)
+
+    def test_titles_and_authors_are_normalised_for_lookups(self):
+        self.assertEqual(_display_name("Ernest Becker, Ernest Becker"), "Ernest Becker")
+        self.assertEqual(_display_name("Becker, Ernest"), "Ernest Becker")
+        self.assertEqual(_title_variants("Denial of Death"), ["Denial of Death", "The Denial of Death"])
+        self.assertEqual(_title_variants("The Denial of Death"), ["The Denial of Death", "Denial of Death"])
+
+    def test_home_shows_title_and_author_only_for_books_still_in_the_library(self):
+        refresh_quote(self.store, date.today(), sources=(("wikiquote", Mock(return_value=Quote("Truth acknowledged.", "Wikiquote", "https://en.wikiquote.org/wiki/Pride_and_Prejudice"))),))
+        client = self.app.test_client()
+        client.get("/login")
+        with client.session_transaction() as session:
+            csrf = session["csrf"]
+        client.post("/login", data={"csrf": csrf, "username": "alice", "password": PASSWORD})
+        page = client.get("/").data
+        self.assertIn(b"Truth acknowledged.", page)
+        self.assertIn("— Pride and Prejudice - Jane Austen".encode(), page)
+        with self.store.edit() as library:
+            library["copies"].clear()
+        self.assertNotIn(b"Truth acknowledged.", client.get("/").data)
+
+    def test_home_starts_a_background_lookup_for_a_new_day(self):
+        done = Event()
+        with patch("bookeeper.refresh_quote", side_effect=lambda *_: done.set()) as refresh:
+            client = self.app.test_client()
+            client.get("/login")
+            with client.session_transaction() as session:
+                csrf = session["csrf"]
+            client.post("/login", data={"csrf": csrf, "username": "alice", "password": PASSWORD})
+            client.get("/")
+            self.assertTrue(done.wait(5))
+        refresh.assert_called_once()
 
 
 class DataTests(unittest.TestCase):

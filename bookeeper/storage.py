@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from filelock import FileLock
 
@@ -64,6 +64,8 @@ class Library(TypedDict):
     loans: NotRequired[dict[str, Loan]]
     wishlists: NotRequired[dict[str, dict[str, BookCopy]]]
     notes: NotRequired[dict[str, dict[str, str]]]
+    quote: NotRequired[dict[str, str]]
+    quote_state: NotRequired[dict[str, Any]]
 
 
 class Store:

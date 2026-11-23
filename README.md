@@ -58,6 +58,16 @@ lookup fills blank fields for title, author, summary, genre (suggested from
 subjects), format, pages, publisher, publication date, language, and cover.
 Review the details before saving. A copy can also be left unassigned.
 
+The home page also shows a **Quote of the day** taken from a book that is currently in
+the catalog. The first visit on a new day looks one up in the background (the card appears
+on the next page load) and the same quote is kept all day. Quotes come from
+[Wikiquote](https://en.wikiquote.org) (CC BY-SA), falling back to a sentence from the book's
+text on [Project Gutenberg](https://www.gutenberg.org) for public-domain books. Only the
+title and author are sent. Books without a match are skipped. If no book has a quote (or the
+lookups fail), the card shows one of 200 famous quotes bundled in `bookeeper/fallback_quotes.json`
+(taken from Wikiquote's quote-of-the-day archive, author only, cycling daily). The quote is kept outside backups and snapshots. Set
+`BOOKEEPER_QUOTES=0` to turn the feature off.
+
 ### Phone access over home-network HTTPS
 
 Keep the development server local. To serve Bookeeper to phones, stop it and

@@ -1,9 +1,10 @@
 import os
 import re
 import secrets
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from random import Random
+from threading import Lock, Thread
 from uuid import uuid4
 
 import click
@@ -29,6 +30,7 @@ from .catalog import (
 from .workflows import READING_STATUSES, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
 from .dashboard import activity
+from .quotes import needs_refresh, quote_for_display, refresh_quote
 from .storage import BookCopy, LocationKind, Store
 
 
@@ -55,6 +57,23 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         app.secret_key = key
 
     fallback_hash = generate_password_hash(secrets.token_hex(24))
+
+    quotes_enabled = bool(app.config.get("QUOTES", os.environ.get("BOOKEEPER_QUOTES") != "0" and not app.testing))
+    quote_lookup = Lock()
+
+    def start_quote_refresh(today: date) -> None:
+        if not quote_lookup.acquire(blocking=False):
+            return
+
+        def work() -> None:
+            try:
+                refresh_quote(store, today)
+            except Exception:
+                app.logger.exception("Quote of the day lookup failed")
+            finally:
+                quote_lookup.release()
+
+        Thread(target=work, daemon=True).start()
 
     existing_accounts = "An account already exists. Use add-user to create another household sign-in."
 
@@ -197,11 +216,15 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         if any(field in request.args for field in ("q", "location", "reading", "loan")):
             return catalog()
         library = store.read()
+        today = date.today()
+        if quotes_enabled and needs_refresh(library, today, datetime.now(UTC)):
+            start_quote_refresh(today)
         books = list(reversed(library["copies"].values()))
         wishlist = list(reversed(library.get("wishlists", {}).get(g.user, {}).values()))
         return render_template(
             "home.html",
             featured=next((book for book in books if book.get("cover_id")), books[0] if books else None),
+            quote=quote_for_display(library) if quotes_enabled else None,
             recent=books[:6],
             wishlist=wishlist[:4],
             wishlist_count=len(wishlist),
