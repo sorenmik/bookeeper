@@ -260,8 +260,10 @@ def quote_for_display(library: Library) -> dict | None:
     quote = library.get("quote")
     if not isinstance(quote, dict):
         return None
-    keys = {book_key(book) for book in library["copies"].values()}
-    return quote if not quote.get("book_key") or quote["book_key"] in keys else None
+    if not quote.get("book_key"):
+        return quote
+    copy_id = next((key for key, book in library["copies"].items() if book_key(book) == quote["book_key"]), None)
+    return {**quote, "copy_id": copy_id} if copy_id else None
 
 
 def refresh_quote(store: Store, today: date, rng: Random | None = None, sources: tuple[tuple[str, Fetcher], ...] = SOURCES) -> bool:

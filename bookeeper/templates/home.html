@@ -49,7 +49,7 @@
     <p class="eyebrow">Quote of the day</p>
     <blockquote><p>{{ quote.text }}</p></blockquote>
     <figcaption>
-        — {% if quote.title %}{{ quote.title }} - {% endif %}{{ quote.author }}
+        — {% if quote.copy_id %}<a href="{{ url_for('edit_copy', copy_id=quote.copy_id) }}">{{ quote.title }}</a> - {% elif quote.title %}{{ quote.title }} - {% endif %}{{ quote.author }}
         <small>Source: <a href="{{ quote.url }}" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ quote.source }}</a>{% if quote.source == 'Wikiquote' %} (CC BY-SA){% endif %}</small>
     </figcaption>
 </figure>

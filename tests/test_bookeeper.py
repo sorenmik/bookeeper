@@ -440,7 +440,7 @@ class QuoteTests(unittest.TestCase):
         client.post("/login", data={"csrf": csrf, "username": "alice", "password": PASSWORD})
         page = client.get("/").data
         self.assertIn(b"Truth acknowledged.", page)
-        self.assertIn("— Pride and Prejudice - Jane Austen".encode(), page)
+        self.assertIn(f'— <a href="/copies/{"a" * 32}/edit">Pride and Prejudice</a> - Jane Austen'.encode(), page)
         with self.store.edit() as library:
             library["copies"].clear()
         self.assertNotIn(b"Truth acknowledged.", client.get("/").data)
