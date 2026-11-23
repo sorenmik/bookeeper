@@ -43,6 +43,7 @@ It should be a webpage made in Python.
     - Simple: near-black surfaces with orange highlights (default).
     - Burnley, 1657: an old English monastery library. Monks reading while drinking an ale, scrolls, parchment, and candlelight.
     - Future: sci-fi. Foreign worlds, planets, spaceships, and nebulas behind semi-opaque panels, with sci-fi humour.
+    - Summer evening: reading a book under an apple tree on a sunny summer evening. Fireflies, the sun going down, the moon rising, cozy.
 - Flatpak/flathub layout looking
 
 

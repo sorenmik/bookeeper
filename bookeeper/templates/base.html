@@ -32,7 +32,7 @@
                         <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
                     </form>
                 {% endif %}
-                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option></select></label>
+                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option><option value="orchard">Summer evening</option></select></label>
             </div>
         </nav>
     </header>
@@ -60,6 +60,11 @@
                 <li>Library card valid in four star systems and one suspicious nebula.</li>
             </ul>
         </div>
+    </footer>
+    <footer class="orchard-footer">
+        <img src="{{ url_for('static', filename='evening-orchard.svg') }}" width="172" height="77" alt="" loading="lazy">
+        <p><span>The orchard reading corner</span> · Sunset 21:47 · Moonrise 21:52 · Fireflies: plenty</p>
+        <p>Just one more chapter before it gets dark. (It got dark two chapters ago.)</p>
     </footer>
 </body>
 </html>
