@@ -8,5 +8,5 @@
     } catch {
         // Storage may be unavailable; fall back to the default theme.
     }
-    document.documentElement.dataset.theme = ["simple", "burnley"].includes(stored) ? stored : "simple";
+    document.documentElement.dataset.theme = ["simple", "burnley", "future"].includes(stored) ? stored : "simple";
 })();

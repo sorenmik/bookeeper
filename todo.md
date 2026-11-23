@@ -42,6 +42,7 @@ It should be a webpage made in Python.
 - Themes:
     - Simple: near-black surfaces with orange highlights (default).
     - Burnley, 1657: an old English monastery library. Monks reading while drinking an ale, scrolls, parchment, and candlelight.
+    - Future: sci-fi. Foreign worlds, planets, spaceships, and nebulas behind semi-opaque panels, with sci-fi humour.
 - Flatpak/flathub layout looking
 
 

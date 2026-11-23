@@ -149,5 +149,5 @@
   <!-- Hanging sign -->
   <path d="M120 12v10m56-10v10" stroke="#6b4a2a"/>
   <rect x="112" y="22" width="72" height="18" rx="2" fill="#5a3a1e" stroke="#c9a24a" stroke-width=".8"/>
-  <text x="148" y="35" text-anchor="middle" font-family="'Old English Text MT', 'UnifrakturMaguntia', 'Luminari', serif" font-size="11" fill="#e9c46a">Anno MDCLVII</text>
+  <text x="119" y="35" textLength="58" lengthAdjust="spacingAndGlyphs" font-family="'Old English Text MT', 'UnifrakturMaguntia', 'Luminari', serif" font-size="11" fill="#e9c46a">Anno MDCLVII</text>
 </svg>

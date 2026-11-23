@@ -32,7 +32,7 @@
                         <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
                     </form>
                 {% endif %}
-                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option></select></label>
+                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option></select></label>
             </div>
         </nav>
     </header>
@@ -46,6 +46,20 @@
         <img src="{{ url_for('static', filename='scriptorium.svg') }}" width="172" height="77" alt="" loading="lazy">
         <p><span>Scriptorium Burnliensis</span> · Anno Domini MDCLVII</p>
         <p lang="la"><i>Ora, lege et bibe</i> — pray, read, and drink.</p>
+    </footer>
+    <footer class="ship-log">
+        <p><span>Intergalactic Lending Library</span> · Stardate 2657.11 · Hull integrity 98%, shelf integrity 100%</p>
+        <div class="ship-log-ticker">
+            <ul>
+                <li>Overdue fines accrue at 0.3 credits per light-year. Time dilation is not an excuse.</li>
+                <li>In space, no one can hear you shush. The librarian droid shushes anyway.</li>
+                <li>Bookmarks may shift during hyperspace jumps.</li>
+                <li>Please use the book return slot, not the airlock. We are still looking for volume 2.</li>
+                <li>The librarian droid would like everyone to stop calling it “the Dewey Decimator”.</li>
+                <li>Reading in zero-g? Hold the book. Firmly. With both hands.</li>
+                <li>Library card valid in four star systems and one suspicious nebula.</li>
+            </ul>
+        </div>
     </footer>
 </body>
 </html>

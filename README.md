@@ -40,7 +40,10 @@ activity chart. The Bookend logo, outline icons, and bookshelf illustration are 
 locally. On smaller screens, tap **Menu** to open navigation and theme settings.
 The default **Simple** theme uses near-black surfaces with orange highlights. The Theme
 menu also offers **Burnley, 1657**: a candlelit monastery scriptorium with parchment folios,
-blackletter headings, illuminated capitals, and monks reading over their ale. Copies added before date
+blackletter headings, illuminated capitals, and monks reading over their ale, and **Future**:
+the Intergalactic Lending Library, with frosted glass panels over a nebula-and-planets backdrop, a
+ship's-log ticker of library jokes, and the occasional saucer towing an overdue notice. Animations
+stop when your device asks for reduced motion. Copies added before date
 tracking began still count in the catalog total but not in the chart’s “Added”
 series. The **Stats** tab also shows the reading-status breakdown and top genres.
 Under **Locations**, use **Add location** to create a room, then a bookcase
