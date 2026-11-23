@@ -30,6 +30,10 @@
         <img class="home-shelf-art burnley-art" src="{{ url_for('static', filename='scriptorium.svg') }}" alt="" width="344" height="154" loading="lazy">
         <img class="home-shelf-art future-art" src="{{ url_for('static', filename='starship-library.svg') }}" alt="" width="344" height="154" loading="lazy">
         <img class="home-shelf-art orchard-art" src="{{ url_for('static', filename='evening-orchard.svg') }}" alt="" width="344" height="154" loading="lazy">
+        <picture>
+            <source srcset="{{ url_for('static', filename='pixel-tavern-still.png') }}" media="(prefers-reduced-motion: reduce)">
+            <img class="home-shelf-art pixel-art" src="{{ url_for('static', filename='pixel-tavern.png') }}" alt="" width="344" height="154" loading="lazy">
+        </picture>
         {% if featured %}
             <a class="home-feature" href="{{ url_for('edit_copy', copy_id=featured.id) }}">
                 {{ cover(featured, 'M') }}

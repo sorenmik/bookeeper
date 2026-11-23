@@ -44,7 +44,9 @@ blackletter headings, illuminated capitals, and monks reading over their ale, an
 the Intergalactic Lending Library, with frosted glass panels over a nebula-and-planets backdrop, a
 ship's-log ticker of library jokes, and the occasional saucer towing an overdue notice. **Summer evening**
 puts you under an apple tree at sunset: a warm glass reading page over a golden sky with the moon
-rising, drifting fireflies, and apple-red buttons. Animations
+rising, drifting fireflies, and apple-red buttons. **Pirate tavern** is night-time pixel art in blue and
+orange: an animated harbour backdrop, wood-framed panels, a custom bitmap font, a crackling fireplace,
+and an adventure-game verb bar with an inventory. Animations
 stop when your device asks for reduced motion. Copies added before date
 tracking began still count in the catalog total but not in the chart’s “Added”
 series. The **Stats** tab also shows the reading-status breakdown and top genres.

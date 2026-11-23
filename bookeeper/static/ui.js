@@ -12,6 +12,31 @@ theme.addEventListener("change", () => {
     }
 });
 
+// Pirate tavern theme: an adventure-game action line that names whatever the pointer is over.
+const verbLine = document.querySelector(".verb-line");
+if (verbLine) {
+    const idle = verbLine.textContent;
+    const nameOf = (el) => (el.getAttribute("aria-label") || el.textContent || el.value || el.placeholder || "")
+        .replace(/\s+/g, " ").trim().slice(0, 40);
+    document.addEventListener("pointerover", (event) => {
+        if (document.documentElement.dataset.theme !== "pixel") return;
+        const target = event.target.closest("a, button, summary, select, input, textarea");
+        if (!target) {
+            verbLine.textContent = idle;
+        } else if (target.matches("input, textarea, select")) {
+            const label = target.labels?.[0]
+                ? [...target.labels[0].childNodes].filter((node) => node.nodeType === Node.TEXT_NODE)
+                    .map((node) => node.textContent).join(" ").replace(/\s+/g, " ").trim()
+                : "";
+            verbLine.textContent = `${target.matches("select") ? "Pick" : "Write in"} ${label || "this"}`;
+        } else {
+            verbLine.textContent = `${target.matches("a") ? "Walk to" : "Use"} ${nameOf(target)}`;
+        }
+    });
+}
+const quips = document.querySelectorAll(".pixel-quips li");
+if (quips.length) quips[Math.floor(Math.random() * quips.length)].classList.add("is-current");
+
 const navToggle = document.querySelector(".nav-toggle");
 if (navToggle) {
     navToggle.hidden = false;

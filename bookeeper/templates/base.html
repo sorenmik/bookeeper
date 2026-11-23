@@ -32,7 +32,7 @@
                         <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
                     </form>
                 {% endif %}
-                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option><option value="orchard">Summer evening</option></select></label>
+                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option><option value="orchard">Summer evening</option><option value="pixel">Pirate tavern</option></select></label>
             </div>
         </nav>
     </header>
@@ -65,6 +65,29 @@
         <img src="{{ url_for('static', filename='evening-orchard.svg') }}" width="172" height="77" alt="" loading="lazy">
         <p><span>The orchard reading corner</span> · Sunset 21:47 · Moonrise 21:52 · Fireflies: plenty</p>
         <p>Just one more chapter before it gets dark. (It got dark two chapters ago.)</p>
+    </footer>
+    <footer class="pixel-footer">
+        <p class="verb-line" aria-hidden="true">Walk to</p>
+        <div class="pixel-ui" aria-hidden="true">
+            <ul class="verbs">
+                <li>Open</li><li>Read</li><li>Lend</li>
+                <li>Look at</li><li>Shelve</li><li>Return</li>
+                <li>Pick up</li><li>Dust off</li><li>Talk to</li>
+            </ul>
+            <ul class="inventory">
+                <li class="item-book"></li><li class="item-key"></li><li class="item-mug"></li>
+                <li class="item-map"></li><li class="item-lantern"></li><li class="item-banana"></li>
+            </ul>
+        </div>
+        <p><span>The Leaky Lantern</span> · Tavern &amp; lending library · Open until the candles run out</p>
+        <ul class="pixel-quips">
+            <li>You can't use the book with the fireplace. That would be a terrible idea.</li>
+            <li>The parrot has read every book in here. It refuses to discuss the endings.</li>
+            <li>Look at bookshelf: “It's a bookshelf. It shelves books.”</li>
+            <li>Overdue fines are payable in doubloons, pieces of eight, or one really good sea shanty.</li>
+            <li>That book is guarded by a very judgemental parrot.</li>
+            <li>Pick up candle: “I'd rather not. Reading by moonlight is how pirates get squinty.”</li>
+        </ul>
     </footer>
 </body>
 </html>
