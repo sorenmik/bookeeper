@@ -71,4 +71,4 @@ export BOOKEEPER_DATA_DIR="$PWD/instance/demo"
 ```
 
 The tests use temporary data folders and do not contact Open Library.
-See [todo.md](./todo.md) for the project requirements.
+
