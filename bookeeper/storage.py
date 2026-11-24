@@ -72,6 +72,7 @@ class Loan(TypedDict):
 class Library(TypedDict):
     session_key: str
     users: dict[str, str]
+    sessions: NotRequired[dict[str, str]]
     copies: dict[str, BookCopy]
     storages: dict[str, Storage]
     units: dict[str, Unit]
@@ -98,7 +99,7 @@ def upgrade(library: Library) -> Library:
 
 class Store:
     def __init__(self, directory: Path):
-        directory.mkdir(parents=True, exist_ok=True)
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.path = directory / "library.json"
         self.lock = FileLock(directory / "library.lock", timeout=10)
 

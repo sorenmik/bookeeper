@@ -1,7 +1,9 @@
+import ipaddress
 import os
 import re
 import secrets
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from math import ceil
 from pathlib import Path
 from random import Random
 from threading import Lock, Thread
@@ -31,17 +33,44 @@ from .dashboard import activity
 from .quotes import needs_refresh, quote_for_display, refresh_quote
 from .version import build_version
 from .storage import BookCopy, Store
+from .throttle import Throttle
+
+MIN_PASSWORD = 12
+LOGIN_LIMIT = 10
+LOGIN_WINDOW = 15 * 60
+CONTENT_SECURITY_POLICY = "; ".join((
+    "default-src 'self'",
+    "img-src 'self' data: blob: https://covers.openlibrary.org https://archive.org https://*.archive.org",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'wasm-unsafe-eval'",
+    "worker-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+))
+SHARED_ASSETS = {"static", "scanner", "scanner_ocr"}
+
+
+def check_password(password: str) -> None:
+    if len(password) < MIN_PASSWORD:
+        raise click.ClickException(f"Use a password of at least {MIN_PASSWORD} characters.")
 
 
 def create_app(config: dict[str, object] | None = None) -> Flask:
     app = Flask(__name__)
+    secure = os.environ.get("BOOKEEPER_SECURE_COOKIES") == "1"
     app.config.from_mapping(
         DATA_DIR=os.environ.get("BOOKEEPER_DATA_DIR") or app.instance_path,
         PUBLIC_URL=os.environ.get("BOOKEEPER_PUBLIC_URL", ""),
+        CLIENT_IP_HEADER=os.environ.get("BOOKEEPER_CLIENT_IP_HEADER", ""),
         MAX_CONTENT_LENGTH=32 * 1024,
+        PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+        SESSION_COOKIE_NAME="__Host-session" if secure else "session",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("BOOKEEPER_SECURE_COOKIES") == "1",
+        SESSION_COOKIE_SECURE=secure,
     )
     if config is not None:
         app.config.update(config)
@@ -56,6 +85,8 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         app.secret_key = key
 
     fallback_hash = generate_password_hash(secrets.token_hex(24))
+    attempts_by_name = Throttle(LOGIN_LIMIT, LOGIN_WINDOW)
+    attempts_by_address = Throttle(LOGIN_LIMIT, LOGIN_WINDOW)
     version = build_version()
 
     @app.context_processor
@@ -85,8 +116,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         username = username.lower()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,39}", username):
             raise click.ClickException("Use 1 to 40 letters, digits, dots, dashes or underscores.")
-        if not password:
-            raise click.ClickException("Enter a password.")
+        check_password(password)
         password_hash = generate_password_hash(password)
         with store.edit() as library:
             if first_only and library["users"]:
@@ -102,6 +132,20 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     def add_user(username: str, password: str) -> None:
         """Create a household sign-in from the host computer."""
         save_user(username, password)
+
+    @app.cli.command("set-password")
+    @click.argument("username")
+    @click.password_option()
+    def set_password(username: str, password: str) -> None:
+        """Change a household sign-in's password and sign it out on every device."""
+        username = username.lower()
+        check_password(password)
+        with store.edit() as library:
+            if username not in library["users"]:
+                raise click.ClickException("That username does not exist.")
+            library["users"][username] = generate_password_hash(password)
+            library.get("sessions", {}).pop(username, None)
+        click.echo(f"Changed the password for {username} and signed it out everywhere.")
 
     @app.cli.command("create-first-user")
     def create_first_user() -> None:
@@ -141,7 +185,8 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     def load_user() -> Response | None:
         session.setdefault("csrf", secrets.token_urlsafe(32))
         g.user = session.get("user")
-        users = store.read()["users"] if g.user else {}
+        library = store.read() if g.user else None
+        users = library["users"] if library else {}
         g.owner = bool(g.user and g.user == next(iter(users), None))
         if request.method == "POST":
             if request.endpoint == "backups.restore" and g.owner:
@@ -149,17 +194,27 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             token = request.form.get("csrf", "").encode()
             if not secrets.compare_digest(token, session["csrf"].encode()):
                 abort(400, "This form expired or is invalid. Go back, reload the page and try again.")
-        if g.user and g.user not in users:
+        if library and (g.user not in users or session.get("token") != library.get("sessions", {}).get(g.user)):
             session.clear()
+            session["csrf"] = secrets.token_urlsafe(32)
             g.user = None
+            g.owner = False
         if not g.user and request.endpoint not in {None, "login", "static"}:
             return redirect(url_for("login"))
         return None
 
     @app.after_request
-    def prevent_private_caching(response: Response) -> Response:
-        if request.endpoint in {"home", "household.wishlist", "edit_copy", "login"}:
+    def secure_response(response: Response) -> Response:
+        if request.endpoint not in SHARED_ASSETS:
             response.cache_control.no_store = True
+            response.cache_control.private = True
+        response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(), geolocation=()")
+        if app.config["SESSION_COOKIE_SECURE"]:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return response
 
     @app.errorhandler(Timeout)
@@ -173,25 +228,60 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     def form_error(error: HTTPException) -> tuple[str, int]:
         return render_template("error.html", message=error.description), error.code or 500
 
+    def client_address() -> str:
+        header = app.config["CLIENT_IP_HEADER"]
+        forwarded = request.headers.get(header, "") if header else ""
+        return forwarded.split(",")[-1].strip() or request.remote_addr or ""
+
+    def is_loopback(address: str) -> bool:
+        try:
+            return ipaddress.ip_address(address).is_loopback
+        except ValueError:
+            return False
+
+    def start_session(username: str) -> None:
+        token = store.read().get("sessions", {}).get(username)
+        if not token:
+            with store.edit() as library:
+                token = library.setdefault("sessions", {}).setdefault(username, secrets.token_urlsafe(32))
+        session.clear()
+        session.permanent = True
+        session["user"] = username
+        session["token"] = token
+
     @app.route("/login", methods=["GET", "POST"])
-    def login() -> Response | str:
+    def login() -> Response | str | tuple[str, int]:
         if g.user:
             return redirect(url_for("home"))
         users = store.read()["users"]
         if request.method == "POST":
-            username = request.form.get("username", "").strip().lower()
+            username = request.form.get("username", "").strip().lower()[:40]
             password = request.form.get("password", "")
+            address = client_address()
+            # Without a configured client-IP header, a loopback address is the reverse proxy, shared by every visitor.
+            limit_address = not is_loopback(address)
+            wait = max(attempts_by_name.wait(username), attempts_by_address.wait(address) if limit_address else 0)
+            if wait:
+                minutes = ceil(wait / 60)
+                flash(f"Too many sign-in attempts. Try again in {minutes} minute{'s' if minutes != 1 else ''}.", "error")
+                return render_template("login.html", has_users=bool(users)), 429
+            attempts_by_name.record(username)
+            if limit_address:
+                attempts_by_address.record(address)
             password_hash = users.get(username)
             if check_password_hash(password_hash or fallback_hash, password):
                 if password_hash:
-                    session.clear()
-                    session["user"] = username
+                    attempts_by_name.clear(username)
+                    start_session(username)
                     return redirect(url_for("home"))
             flash("Username or password is incorrect.", "error")
         return render_template("login.html", has_users=bool(users))
 
     @app.post("/logout")
     def logout() -> Response:
+        if g.user:
+            with store.edit() as library:
+                library.get("sessions", {}).pop(g.user, None)
         session.clear()
         return redirect(url_for("login"))
 

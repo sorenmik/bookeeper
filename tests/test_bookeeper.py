@@ -146,6 +146,9 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], wall)
         self.assertEqual(self.post("/books/undo-move").status_code, 302)
         self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], top_left)
+        sneaky = self.post("/books/move", target=wall, book=ids["Dune"], next="/\t/evil.example")
+        self.assertNotIn("evil.example", sneaky.location)
+        self.assertEqual(self.post("/books/undo-move").status_code, 302)
         self.assertEqual(self.post("/books/move", target=wall, source=cabinet).status_code, 302)
         self.assertEqual({book["location_id"] for book in self.store.read()["copies"].values()}, {wall, ""})
         # Shrinking and removing units never deletes books.
@@ -228,13 +231,18 @@ class CatalogTests(unittest.TestCase):
 
 
 class SetupTests(unittest.TestCase):
-    def test_passwords_outside_previous_length_limits_work(self):
-        for password in ("x", "x" * 257):
+    def test_password_length_rules(self):
+        for password, accepted in (("x" * 11, False), ("x" * 12, True), ("x" * 257, True)):
             with self.subTest(length=len(password)), TemporaryDirectory() as directory:
                 app = create_app({"TESTING": True, "DATA_DIR": directory})
                 result = app.test_cli_runner().invoke(
                     args=["create-first-user"], input=f"Owner\n{password}\n{password}\n"
                 )
+                if not accepted:
+                    self.assertNotEqual(result.exit_code, 0)
+                    self.assertIn("at least 12 characters", result.output)
+                    self.assertEqual(Store(Path(directory)).read()["users"], {})
+                    continue
                 self.assertEqual(result.exit_code, 0, result.output)
 
                 client = app.test_client()
@@ -265,6 +273,72 @@ class SetupTests(unittest.TestCase):
             self.assertIn("An account already exists.", repeated.output)
             self.assertNotIn("Username:", repeated.output)
             self.assertEqual(set(Store(Path(directory)).read()["users"]), {"owner"})
+
+
+class AuthTests(unittest.TestCase):
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.app = create_app({"TESTING": True, "DATA_DIR": directory.name, "CLIENT_IP_HEADER": "CF-Connecting-IP"})
+        for username in ("owner", "member"):
+            result = self.app.test_cli_runner().invoke(args=["add-user", username], input=f"{PASSWORD}\n{PASSWORD}\n")
+            self.assertEqual(result.exit_code, 0, result.output)
+
+    def attempt(self, username, password=PASSWORD, address="", client=None):
+        client = client or self.app.test_client()
+        headers = {"CF-Connecting-IP": address} if address else {}
+        client.get("/login", headers=headers)
+        with client.session_transaction() as session:
+            csrf = session["csrf"]
+        data = {"csrf": csrf, "username": username, "password": password}
+        return client.post("/login", data=data, headers=headers)
+
+    def signed_in(self, username):
+        client = self.app.test_client()
+        self.assertEqual(self.attempt(username, client=client).location, "/")
+        client.get("/")
+        return client
+
+    def test_repeated_failures_lock_the_username_and_address(self):
+        for username in ("owner", "ghost"):
+            for _ in range(10):
+                self.assertEqual(self.attempt(username, "wrong password").status_code, 200)
+            blocked = self.attempt(username)
+            self.assertEqual(blocked.status_code, 429)
+            self.assertIn(b"Too many sign-in attempts", blocked.data)
+        self.assertEqual(self.attempt("member").location, "/")
+
+        for index in range(10):
+            self.attempt(f"guess{index}", "wrong password", address="203.0.113.5")
+        self.assertEqual(self.attempt("member", address="203.0.113.5").status_code, 429)
+        self.assertEqual(self.attempt("member", address="198.51.100.7").location, "/")
+
+    def test_sign_out_and_password_change_end_sessions_everywhere(self):
+        phone, laptop = self.signed_in("owner"), self.signed_in("owner")
+        member = self.signed_in("member")
+        self.assertEqual(laptop.get("/").status_code, 200)
+        with phone.session_transaction() as session:
+            csrf = session["csrf"]
+        self.assertEqual(phone.post("/logout", data={"csrf": csrf}).location, "/login")
+        self.assertEqual(laptop.get("/").location, "/login")
+        self.assertEqual(member.get("/").status_code, 200)
+
+        result = self.app.test_cli_runner().invoke(
+            args=["set-password", "member"], input=f"{PASSWORD}2\n{PASSWORD}2\n"
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(member.get("/").location, "/login")
+        self.assertEqual(self.attempt("member", f"{PASSWORD}2").location, "/")
+
+    def test_private_pages_are_not_cached_and_send_security_headers(self):
+        client = self.signed_in("owner")
+        page = client.get("/catalog")
+        self.assertIn("no-store", page.headers["Cache-Control"])
+        self.assertIn("frame-ancestors 'none'", page.headers["Content-Security-Policy"])
+        self.assertEqual(page.headers["X-Content-Type-Options"], "nosniff")
+        stylesheet = client.get("/static/style.css")
+        self.assertNotIn("no-store", stylesheet.headers.get("Cache-Control", ""))
+        stylesheet.close()
 
 
 class WorkflowTests(unittest.TestCase):

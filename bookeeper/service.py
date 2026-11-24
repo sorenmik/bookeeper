@@ -6,14 +6,17 @@ from time import monotonic, sleep
 from uuid import uuid4
 
 from filelock import FileLock, Timeout
-from werkzeug.serving import ThreadedWSGIServer
+from waitress import wasyncore
+from waitress.server import create_server
 
 from . import create_app
+from .backup import MAX_BACKUP
 
 HOST = "127.0.0.1"
 PORT = 5000
 URL = f"http://{HOST}:{PORT}"
 WAIT_SECONDS = 10
+MAX_BODY = MAX_BACKUP + 64 * 1024
 
 
 class Service:
@@ -44,16 +47,27 @@ class Service:
         with self.worker.acquire(timeout=WAIT_SECONDS):
             if self.stop_signal.is_file() or self.request.read_text(encoding="ascii") != token:
                 return
+            connections: dict = {}
+            server = create_server(
+                create_app(), map=connections, host=HOST, port=PORT, max_request_body_size=MAX_BODY,
+            )
             try:
-                with ThreadedWSGIServer(HOST, PORT, create_app()) as server:
-                    server.daemon_threads = False  # Let in-flight requests finish on stop.
-                    server.timeout = 0.25
-                    if not self.stop_signal.is_file():
-                        self.ready.touch()
-                    while not self.stop_signal.is_file():
-                        server.handle_request()
+                if not self.stop_signal.is_file():
+                    self.ready.touch()
+                while not self.stop_signal.is_file():
+                    wasyncore.loop(timeout=0.25, map=connections, count=1)
             finally:
                 self.ready.unlink(missing_ok=True)
+                server.accepting = False
+                # Let in-flight requests finish, then close idle keep-alive connections.
+                deadline = monotonic() + WAIT_SECONDS
+                while server.active_channels and monotonic() < deadline:
+                    for channel in list(server.active_channels.values()):
+                        if not channel.requests:
+                            channel.close_when_flushed = True
+                    wasyncore.loop(timeout=0.25, map=connections, count=1)
+                server.close()
+                server.task_dispatcher.shutdown(timeout=WAIT_SECONDS)
 
     def start(self) -> int:
         if self.active():

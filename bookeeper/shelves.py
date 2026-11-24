@@ -1,3 +1,4 @@
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from flask import Flask, Response, abort, flash, redirect, render_template, request, url_for
@@ -28,7 +29,12 @@ def whole(value: str, low: int, high: int, what: str) -> int:
 
 
 def local_path(value: str, fallback: str) -> str:
-    return value if value.startswith("/") and not value.startswith(("//", "/\\")) else fallback
+    parts = urlsplit(value)
+    safe = (
+        value.startswith("/") and not value.startswith("//") and value.isprintable()
+        and "\\" not in value and not parts.scheme and not parts.netloc
+    )
+    return value if safe else fallback
 
 
 def free_position(library: Library, storage_id: str, cols: int) -> tuple[int, int]:
