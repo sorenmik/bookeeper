@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, TypedDict
 
 from filelock import FileLock
 
@@ -17,7 +17,7 @@ class Storage(TypedDict):
     name: str
 
 
-class Unit(TypedDict):
+class UnitRequired(TypedDict):
     id: str
     storage_id: str
     kind: UnitKind
@@ -27,7 +27,10 @@ class Unit(TypedDict):
     x: int
     y: int
     slot_names: dict[str, str]
-    color: NotRequired[str]
+
+
+class Unit(UnitRequired, total=False):
+    color: str
 
 
 class LastMove(TypedDict):
@@ -35,7 +38,7 @@ class LastMove(TypedDict):
     previous: dict[str, str]
 
 
-class BookCopy(TypedDict):
+class BookCopyRequired(TypedDict):
     id: str
     title: str
     author: str
@@ -43,15 +46,18 @@ class BookCopy(TypedDict):
     isbn: str
     tags: list[str]
     location_id: str
-    summary: NotRequired[str]
-    genre: NotRequired[str]
-    format: NotRequired[str]
-    publisher: NotRequired[str]
-    publication_date: NotRequired[str]
-    language: NotRequired[str]
-    pages: NotRequired[int | None]
-    cover_id: NotRequired[int | None]
-    added_on: NotRequired[str]
+
+
+class BookCopy(BookCopyRequired, total=False):
+    summary: str
+    genre: str
+    format: str
+    publisher: str
+    publication_date: str
+    language: str
+    pages: int | None
+    cover_id: int | None
+    added_on: str
 
 
 class Reading(TypedDict):
@@ -69,21 +75,24 @@ class Loan(TypedDict):
     returned: str
 
 
-class Library(TypedDict):
+class LibraryRequired(TypedDict):
     session_key: str
     users: dict[str, str]
-    sessions: NotRequired[dict[str, str]]
     copies: dict[str, BookCopy]
     storages: dict[str, Storage]
     units: dict[str, Unit]
-    slot_capacity: NotRequired[int]
-    last_move: NotRequired[LastMove]
-    reading: NotRequired[dict[str, Reading]]
-    loans: NotRequired[dict[str, Loan]]
-    wishlists: NotRequired[dict[str, dict[str, BookCopy]]]
-    notes: NotRequired[dict[str, dict[str, str]]]
-    quote: NotRequired[dict[str, str]]
-    quote_state: NotRequired[dict[str, Any]]
+
+
+class Library(LibraryRequired, total=False):
+    sessions: dict[str, str]
+    slot_capacity: int
+    last_move: LastMove
+    reading: dict[str, Reading]
+    loans: dict[str, Loan]
+    wishlists: dict[str, dict[str, BookCopy]]
+    notes: dict[str, dict[str, str]]
+    quote: dict[str, str]
+    quote_state: dict[str, Any]
 
 
 def upgrade(library: Library) -> Library:

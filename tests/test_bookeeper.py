@@ -2,7 +2,7 @@ import io
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -543,8 +543,8 @@ class QuoteTests(unittest.TestCase):
         library = self.store.read()
         self.assertEqual(library["quote"]["title"], "Pride and Prejudice")
         self.assertIn("wikiquote:pride and prejudice|jane austen", library["quote_state"]["misses"])
-        self.assertFalse(needs_refresh(library, today, datetime.now(UTC)))
-        self.assertFalse(needs_refresh(library, today, datetime.now(UTC) + timedelta(hours=3)))
+        self.assertFalse(needs_refresh(library, today, datetime.now(timezone.utc)))
+        self.assertFalse(needs_refresh(library, today, datetime.now(timezone.utc) + timedelta(hours=3)))
         self.assertFalse(refresh_quote(self.store, today + timedelta(days=1), sources=sources[:1]))
         self.assertEqual(miss.call_count, 1)
         self.assertEqual(self.store.read()["quote"], fallback_quote(today + timedelta(days=1)))
@@ -556,8 +556,8 @@ class QuoteTests(unittest.TestCase):
         library = self.store.read()
         self.assertEqual(library["quote"], fallback_quote(today))
         self.assertEqual(library["quote"]["title"], "")
-        self.assertFalse(needs_refresh(library, today, datetime.now(UTC) + timedelta(hours=2)))
-        self.assertTrue(needs_refresh(library, today + timedelta(days=1), datetime.now(UTC) + timedelta(hours=2)))
+        self.assertFalse(needs_refresh(library, today, datetime.now(timezone.utc) + timedelta(hours=2)))
+        self.assertTrue(needs_refresh(library, today + timedelta(days=1), datetime.now(timezone.utc) + timedelta(hours=2)))
         self.assertEqual(len({fallback_quote(today + timedelta(days=n))["text"] for n in range(200)}), 200)
 
     def test_titles_and_authors_are_normalised_for_lookups(self):

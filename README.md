@@ -4,6 +4,41 @@ Bookeeper is a private home library catalog. Household members use separate
 sign-ins and share the same collection. Each physical copy can have its own
 location, even if several copies share an ISBN.
 
+## Run locally on Linux
+
+From the project folder in a terminal:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+npm ci
+```
+
+Then create the first account and start the application:
+
+```bash
+bash create-admin.sh
+bash service.sh
+```
+
+The setup script prompts for a username and a non-empty password. It only
+works before any account exists. The menu shows the current status. Choose
+**1** to start Bookeeper in the background, **2** to stop it, **3** to restart
+it, or **0** to exit without changes.
+
+To add another household member, run:
+
+```bash
+.venv/bin/python -m flask --app bookeeper add-user alice
+```
+
+Replace `alice` with the username. Open <http://127.0.0.1:5000> and sign in.
+To run Flask in the foreground instead, use:
+
+```bash
+.venv/bin/python -m flask --app bookeeper run
+```
+
 ## Run locally on Windows
 
 From the project folder in PowerShell:
@@ -21,21 +56,14 @@ bash create-admin.sh
 bash service.sh
 ```
 
-The setup script prompts for a username and a password of at least 12
-characters. It only works before any account exists. The first account can manage shared
+The setup script prompts for a username and a non-empty password.
+It only works before any account exists. The first account can manage shared
 backups. To add another household member, run
 `.\.venv\Scripts\python.exe -m flask --app bookeeper add-user alice` in PowerShell,
-replacing `alice` with their username. To change a password, run
-`.\.venv\Scripts\python.exe -m flask --app bookeeper set-password alice`; this
-also signs that account out on every device.
-
-Signing out ends that account's sessions on every device. Sessions also expire
-after 7 days without use. After 10 sign-in attempts within 15 minutes for the
-same username (or from the same client address), further attempts are refused
-until the window passes. The count is kept in memory and resets when Bookeeper restarts.
+replacing `alice` with their username.
 
 The menu shows the current status. Choose **1** to start Bookeeper in the
-background (with Waitress on `127.0.0.1:5000`), **2** to stop it, **3** to restart it, or **0** to exit without
+background, **2** to stop it, **3** to restart it, or **0** to exit without
 changes. Restart waits for the current server to stop before starting a new
 one. If it is already stopped, restart just starts it. The menu only controls
 the server it started. If you prefer to run Flask in the foreground, use
@@ -79,7 +107,7 @@ lookups fail), the card shows one of 200 famous quotes bundled in `bookeeper/fal
 
 ### Phone access over home-network HTTPS
 
-Keep the Flask development server (`flask run`) local. To serve Bookeeper to phones, stop it and
+Keep the development server local. To serve Bookeeper to phones, stop it and
 run Waitress on loopback behind an HTTPS reverse proxy on the same machine:
 
 ```powershell
@@ -114,21 +142,6 @@ not the camera input used for recognition. If the barcode won't scan, tap
 guide, then tap the button again. Text recognition runs in your browser;
 camera images are not uploaded. Run `npm ci` to install both scanners locally.
 
-### Access from outside the home network
-
-Prefer a tunnel over a router port-forward: Cloudflare Tunnel with Cloudflare
-Access, or Tailscale. Both connect outbound, so no inbound port is opened. Run
-Waitress on `127.0.0.1:5000` as above, set `BOOKEEPER_PUBLIC_URL` to the public
-HTTPS address and `BOOKEEPER_SECURE_COOKIES=1`. With secure cookies on, the session cookie is named
-`__Host-session` and responses include HSTS.
-
-Bookeeper sees every proxied request as coming from `127.0.0.1`. It then limits sign-in
-attempts per username only. To also limit them per client address, set
-`BOOKEEPER_CLIENT_IP_HEADER` to the header your proxy uses for the visitor's
-address, such as `CF-Connecting-IP` for Cloudflare. For a comma-separated header such as `X-Forwarded-For`,
-the last entry is used. Only set it when Bookeeper is reachable solely through that proxy; otherwise
-visitors could fake the header.
-
 ### Backing up and testing
 
 In **Backup**, the first account can save, download, or restore a shared
@@ -161,10 +174,4 @@ $env:BOOKEEPER_DATA_DIR = Join-Path $PWD 'instance\demo'
 ```
 
 The tests use temporary data folders and do not contact Open Library.
-
-Python dependencies are pinned with hashes in `requirements.txt`, generated
-from the version ranges in `requirements.in`. To update them, edit
-`requirements.in` and run the `uv pip compile` command shown at the top of
-`requirements.txt`.
-
 See [todo.md](./todo.md) for the project requirements.

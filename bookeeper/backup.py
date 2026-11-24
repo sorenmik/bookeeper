@@ -2,7 +2,7 @@ import csv
 import io
 import json
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from uuid import uuid4
@@ -133,7 +133,7 @@ def register_backups(app: Flask, store: Store) -> None:
         if len(data) > MAX_BACKUP:
             abort(409, "The shared library is too large for a 16 MiB snapshot.")
         directory.mkdir(exist_ok=True)
-        name = f"bookeeper-{datetime.now(UTC):%Y%m%dT%H%M%S}-{uuid4().hex[:8]}.json"
+        name = f"bookeeper-{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid4().hex[:8]}.json"
         pending = None
         try:
             with NamedTemporaryFile(dir=directory, delete=False) as file:

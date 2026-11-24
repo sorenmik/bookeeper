@@ -2,7 +2,7 @@ import ipaddress
 import os
 import re
 import secrets
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from math import ceil
 from pathlib import Path
 from random import Random
@@ -311,7 +311,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             return catalog()
         library = store.read()
         today = date.today()
-        if quotes_enabled and needs_refresh(library, today, datetime.now(UTC)):
+        if quotes_enabled and needs_refresh(library, today, datetime.now(timezone.utc)):
             start_quote_refresh(today)
         books = list(reversed(library["copies"].values()))
         wishlist = list(reversed(library.get("wishlists", {}).get(g.user, {}).values()))

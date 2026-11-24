@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
 from random import Random
@@ -269,7 +269,7 @@ def quote_for_display(library: Library) -> dict | None:
 def refresh_quote(store: Store, today: date, rng: Random | None = None, sources: tuple[tuple[str, Fetcher], ...] = SOURCES) -> bool:
     rng = rng or Random()
     library = store.read()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     today_text = today.isoformat()
     cutoff = (today - MISS_TTL).isoformat()
     misses = library.get("quote_state", {}).get("misses", {})
