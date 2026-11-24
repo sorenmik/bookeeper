@@ -105,43 +105,6 @@ lookups fail), the card shows one of 200 famous quotes bundled in `bookeeper/fal
 (taken from Wikiquote's quote-of-the-day archive, author only, cycling daily). The quote is kept outside backups and snapshots. Set
 `BOOKEEPER_QUOTES=0` to turn the feature off.
 
-### Phone access over home-network HTTPS
-
-Keep the development server local. To serve Bookeeper to phones, stop it and
-run Waitress on loopback behind an HTTPS reverse proxy on the same machine:
-
-```powershell
-$env:BOOKEEPER_PUBLIC_URL = 'https://books.home.arpa'
-$env:BOOKEEPER_SECURE_COOKIES = '1'
-.\.venv\Scripts\waitress-serve.exe --listen=127.0.0.1:5000 --max-request-body-size=16842752 --call bookeeper:create_app
-```
-
-For example, with Caddy on the same machine, point `books.home.arpa` in local
-DNS to the host's LAN IP (`192.168.1.20` in this example) and use:
-
-```caddyfile
-{
-    auto_https disable_redirects
-}
-books.home.arpa {
-    bind 192.168.1.20
-    tls internal
-    reverse_proxy 127.0.0.1:5000
-}
-```
-
-Allow inbound HTTPS only from your home subnet. Do not forward a router port.
-Install and trust the proxy's local **root certificate** on each device, or
-use a certificate already trusted by the devices. Keep the CA private key on
-the proxy. The Connect QR code uses `BOOKEEPER_PUBLIC_URL`; use that HTTPS URL
-for both signing in and phone scanning. Typing or pasting ISBNs still works
-without the camera. The scanner tells you when the camera is open and when it
-hasn't found an ISBN yet. **Mirror preview** flips only the displayed image,
-not the camera input used for recognition. If the barcode won't scan, tap
-**Read printed ISBN**, line up the printed ISBN label and number in the orange
-guide, then tap the button again. Text recognition runs in your browser;
-camera images are not uploaded. Run `npm ci` to install both scanners locally.
-
 ### Backing up and testing
 
 In **Backup**, the first account can save, download, or restore a shared
