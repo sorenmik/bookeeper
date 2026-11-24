@@ -57,6 +57,15 @@ def slot_label(slot_id: str, library: Library) -> str:
     return SEPARATOR.join(part for part in (unit_label(unit, library), slot_name(unit, row, col)) if part)
 
 
+def mini_map(slot_id: str, library: Library) -> dict | None:
+    """The unit holding a slot, with the slot's row and column, for drawing a small map."""
+    parsed = parse_slot(slot_id, library["units"])
+    if parsed is None:
+        return None
+    unit, row, col = parsed
+    return {"name": unit_label(unit, library), "cols": unit["cols"], "rows": unit["rows"], "row": row, "col": col}
+
+
 def slot_labels(library: Library) -> dict[str, str]:
     return {
         slot: slot_label(slot, library)

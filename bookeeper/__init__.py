@@ -23,7 +23,7 @@ from .catalog import (
     positive_number,
     search_copies,
 )
-from .places import UNPLACED, filter_options, parse_slot, slot_label, slot_labels, slot_options, valid_filter
+from .places import UNPLACED, filter_options, mini_map, parse_slot, slot_label, slot_labels, slot_options, valid_filter
 from .shelves import register_shelves
 from .workflows import READING_STATUSES, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
@@ -372,6 +372,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             ),
             slot_groups=slot_options(library),
             location_path=slot_label(book["location_id"], library),
+            mini_map=mini_map(book["location_id"], library),
         )
         if error:
             return page, 409 if duplicate else 400

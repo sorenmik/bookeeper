@@ -173,6 +173,15 @@ summary { cursor: pointer; }
 .map-token.pile { border-radius: 1.25rem; }
 .map-token.pile .slot-grid, .map-token.box .slot-grid { width: auto; grid-template-columns: 1fr; }
 .book-location { margin: 0; font-size: .9rem; }
+.copy-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.copy-layout .narrow { max-width: none; }
+.copy-side { display: grid; gap: 1rem; }
+.copy-side .card { margin: 0; }
+.copy-side h2 { margin-block-start: 0; }
+.mini-map { display: grid; grid-template-columns: repeat(var(--cols), 1.6rem); gap: 2px; width: max-content; max-width: 100%; margin-block-start: .7rem; overflow: auto; }
+.mini-slot { height: 1.3rem; background: rgb(128 128 128 / 25%); border: 1px solid var(--line); }
+.mini-slot.is-here { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+@media (max-width: 52rem) { .copy-layout { grid-template-columns: minmax(0, 1fr); } }
 .coordinates label { max-width: 5rem; }
 .floor-status, #scan-status { min-height: 1.5rem; }
 #scan-preview-options { margin-block-start: .5rem; }
