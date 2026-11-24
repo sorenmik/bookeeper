@@ -61,7 +61,8 @@
         {% if zone.units %}
         <div class="zone-canvas floor" style="--h:{{ zone.height }}" data-csrf="{{ session.csrf }}" aria-label="Map of {{ zone.name }}">
             {% for unit in zone.units %}
-            <div class="unit map-token {{ unit.kind }}" style="--x:{{ unit.x }};--y:{{ unit.y }};--w:{{ [unit.cols, 2]|max }}"
+            <div class="unit map-token {{ unit.kind }}{% if unit.color %} has-color{% endif %}"
+                 style="--x:{{ unit.x }};--y:{{ unit.y }};--w:{{ [unit.cols, 2]|max }}{% if unit.color %};--unit-color:{{ unit.color }};--unit-ink:{{ unit.ink }}{% endif %}"
                  data-x="{{ unit.x }}" data-y="{{ unit.y }}" data-url="{{ url_for('move_unit', key=unit.id) }}">
                 <div class="unit-bar">
                     <button class="unit-handle" type="button" title="{{ unit.name }} · drag to move, or use the arrow keys">{{ unit.name }}</button>

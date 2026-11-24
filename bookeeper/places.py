@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from collections.abc import Iterator
 
@@ -10,6 +11,15 @@ MAX_SIDE = 20
 DEFAULT_CAPACITY = 30
 UNPLACED = "unplaced"
 SEPARATOR = " › "
+COLOR_PATTERN = re.compile(r"#[0-9a-f]{6}")
+
+
+def ink_for(color: str) -> str:
+    """Black or white text, whichever reads better on the given #rrggbb background."""
+    if not COLOR_PATTERN.fullmatch(color):
+        return ""
+    red, green, blue = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return "#111" if 0.299 * red + 0.587 * green + 0.114 * blue > 150 else "#fff"
 
 
 def fit_size(kind: str, cols: int, rows: int) -> tuple[int, int]:

@@ -150,6 +150,11 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual({book["location_id"] for book in self.store.read()["copies"].values()}, {wall, ""})
         # Shrinking and removing units never deletes books.
         self.assertEqual(self.post(f"/units/{shelf}", name="Wall shelf", cols=1, target=top_left).status_code, 302)
+        self.assertEqual(self.post(f"/units/{shelf}", name="Wall shelf", cols=1, color="#336699").status_code, 302)
+        self.assertEqual(self.store.read()["units"][shelf]["color"], "#336699")
+        self.assertEqual(self.post(f"/units/{shelf}", name="Wall shelf", cols=1, color="red").status_code, 400)
+        self.assertEqual(self.post(f"/units/{shelf}", name="Wall shelf", cols=1, color="#336699", default_color="1").status_code, 302)
+        self.assertNotIn("color", self.store.read()["units"][shelf])
         self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], top_left)
         self.assertEqual(self.post(f"/units/{cabinet}/delete").status_code, 302)
         self.assertEqual({book["location_id"] for book in self.store.read()["copies"].values()}, {""})

@@ -4,7 +4,8 @@ from flask import Flask, Response, abort, flash, redirect, render_template, requ
 
 from .catalog import fold
 from .places import (
-    DEFAULT_CAPACITY, MAX_SIDE, SEPARATOR, SINGLE_SLOT, UNIT_KINDS, UNPLACED, fit_size, in_location, parse_slot,
+    COLOR_PATTERN, DEFAULT_CAPACITY, MAX_SIDE, SEPARATOR, SINGLE_SLOT, UNIT_KINDS, UNPLACED, fit_size, in_location,
+    ink_for, parse_slot,
     slot_label, slot_counts, slot_name, slot_options, sorted_units, unit_label, unit_slots, valid_filter,
 )
 from .storage import Library, Store, Unit
@@ -94,7 +95,10 @@ def register_shelves(app: Flask, store: Store) -> None:
                     ]
                     for row in range(1, unit["rows"] + 1)
                 ]
-                units.append({**unit, "grid": grid, "total": sum(cell["count"] for line in grid for cell in line)})
+                units.append({
+                    **unit, "grid": grid, "ink": ink_for(unit.get("color", "")),
+                    "total": sum(cell["count"] for line in grid for cell in line),
+                })
             zones.append({
                 **storage, "units": units,
                 "height": max((unit["y"] + unit["rows"] for unit in units), default=0) + 1,
@@ -211,6 +215,13 @@ def register_shelves(app: Flask, store: Store) -> None:
             cols = whole(request.form.get("cols", "1") or "1", 1, MAX_SIDE, "Columns")
             rows = whole(request.form.get("rows", "1") or "1", 1, MAX_SIDE, "Rows")
             unit["name"] = name
+            color = request.form.get("color", "").lower()
+            if request.form.get("default_color") or not color:
+                unit.pop("color", None)
+            elif COLOR_PATTERN.fullmatch(color):
+                unit["color"] = color
+            else:
+                abort(400, "Choose a valid colour.")
             unit["cols"], unit["rows"] = fit_size(unit["kind"], cols, rows)
             unit["slot_names"] = {
                 slot: label for slot, label in unit["slot_names"].items()

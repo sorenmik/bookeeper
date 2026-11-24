@@ -27,6 +27,7 @@ class Unit(TypedDict):
     x: int
     y: int
     slot_names: dict[str, str]
+    color: NotRequired[str]
 
 
 class LastMove(TypedDict):

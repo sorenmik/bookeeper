@@ -7,10 +7,13 @@
     <a href="{{ url_for('locations', slot=unit.id ~ ':1:1') }}">Show on the map</a>
 </div>
 <p class="muted">{{ kinds[unit.kind] }} · {{ unit.cols }} × {{ unit.rows }} · {{ book_count }} {{ 'book' if book_count == 1 else 'books' }}</p>
+<div class="cards two-col">
 <form class="card fields" method="post" action="{{ url_for('edit_unit', key=unit.id) }}">
     <h2>Edit</h2>
     <input type="hidden" name="csrf" value="{{ session.csrf }}">
     <label>Name <input name="name" required maxlength="80" value="{{ unit.name }}"></label>
+    <label>Colour <input name="color" type="color" value="{{ unit.color or '#8f5a2b' }}"></label>
+    <label class="check"><input type="checkbox" name="default_color" value="1"{% if not unit.color %} checked{% endif %}> Use the theme's colour</label>
     {% if unit.kind not in single_slot %}
     <label>Columns <input name="cols" type="number" min="1" max="{{ max_side }}" value="{{ unit.cols }}"></label>
     {% if unit.kind == 'cabinet' %}<label>Rows <input name="rows" type="number" min="1" max="{{ max_side }}" value="{{ unit.rows }}"></label>{% endif %}
@@ -19,6 +22,7 @@
     {% endif %}
     <button type="submit" class="primary">Save</button>
 </form>
+<div class="stack">
 <form class="card fields" method="post" action="{{ url_for('delete_unit', key=unit.id) }}"
       data-confirm="Remove {{ unit.name }}{% if book_count %} and move its {{ book_count }} books{% endif %}?">
     <h2>Remove</h2>
@@ -37,4 +41,6 @@
     <button type="submit">Move all</button>
 </form>
 {% endif %}
+</div>
+</div>
 {% endblock %}

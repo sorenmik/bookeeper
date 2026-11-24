@@ -57,7 +57,8 @@ def validate_backup(data: bytes) -> dict:
     for key, item in storages.items():
         need(set(item) == {"id", "name"} and strings(item, "id", "name") and item["id"] == key and bool(item["name"].strip()))
     for key, item in units.items():
-        need(set(item) == {"id", "storage_id", "kind", "name", "cols", "rows", "x", "y", "slot_names"})
+        need(set(item) - {"color"} == {"id", "storage_id", "kind", "name", "cols", "rows", "x", "y", "slot_names"})
+        need(item.get("color", "") == "" or (isinstance(item["color"], str) and re.fullmatch(r"#[0-9a-f]{6}", item["color"])))
         need(strings(item, "id", "storage_id", "kind", "name") and item["id"] == key and bool(item["name"].strip()))
         need(item["storage_id"] in storages and item["kind"] in UNIT_KINDS)
         need(all(type(item[axis]) is int and 1 <= item[axis] <= MAX_SIDE for axis in ("cols", "rows")))

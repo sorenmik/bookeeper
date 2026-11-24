@@ -12,6 +12,12 @@ theme.addEventListener("change", () => {
     }
 });
 
+// Choosing a unit colour switches off "use the theme's colour".
+document.querySelector("input[name=color]")?.addEventListener("input", (event) => {
+    const reset = event.target.form.elements.default_color;
+    if (reset) reset.checked = false;
+});
+
 // Pirate tavern theme: an adventure-game action line that names whatever the pointer is over.
 const verbLine = document.querySelector(".verb-line");
 if (verbLine) {
