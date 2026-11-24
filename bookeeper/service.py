@@ -13,6 +13,7 @@ from . import create_app
 from .backup import MAX_BACKUP
 
 HOST = "127.0.0.1"
+ALL_INTERFACES = "0.0.0.0"
 PORT = 5000
 URL = f"http://{HOST}:{PORT}"
 WAIT_SECONDS = 10
@@ -25,6 +26,7 @@ class Service:
         self.commands = FileLock(directory / "commands.lock", timeout=WAIT_SECONDS)
         self.worker = FileLock(directory / "server.lock")
         self.request = directory / "run-request"
+        self.listen_host = directory / "listen-host"
         self.stop_signal = directory / "stop-request"
         self.ready = directory / "ready"
         self.log = directory / "server.log"
@@ -41,15 +43,19 @@ class Service:
             return "Stopped"
         if self.stop_signal.is_file():
             return "Stopping"
-        return f"Running at {URL}" if self.ready.is_file() else "Starting"
+        if not self.ready.is_file():
+            return "Starting"
+        if self.listen_host.exists() and self.listen_host.read_text(encoding="ascii") == ALL_INTERFACES:
+            return f"Running on all interfaces at port {PORT}"
+        return f"Running at {URL}"
 
-    def serve(self, token: str) -> None:
+    def serve(self, token: str, host: str = HOST) -> None:
         with self.worker.acquire(timeout=WAIT_SECONDS):
             if self.stop_signal.is_file() or self.request.read_text(encoding="ascii") != token:
                 return
             connections: dict = {}
             server = create_server(
-                create_app(), map=connections, host=HOST, port=PORT, max_request_body_size=MAX_BODY,
+                create_app(), map=connections, host=host, port=PORT, max_request_body_size=MAX_BODY,
             )
             try:
                 if not self.stop_signal.is_file():
@@ -69,15 +75,18 @@ class Service:
                 server.close()
                 server.task_dispatcher.shutdown(timeout=WAIT_SECONDS)
 
-    def start(self) -> int:
+    def start(self, host: str = HOST) -> int:
+        if host not in {HOST, ALL_INTERFACES}:
+            raise ValueError("Unsupported listen address.")
         if self.active():
             if self.ready.is_file() and not self.stop_signal.is_file():
-                print(f"Bookeeper is already running at {URL}.")
+                print(f"Bookeeper is already {self.status().lower()}.")
                 return 0
             print(f"Bookeeper: {self.status()}. Try again shortly.", file=sys.stderr)
             return 1
 
         self.ready.unlink(missing_ok=True)
+        self.listen_host.write_text(host, encoding="ascii")
         token = uuid4().hex
         self.request.write_text(token, encoding="ascii")
         self.stop_signal.unlink(missing_ok=True)
@@ -85,7 +94,7 @@ class Service:
         try:
             with self.log.open("ab") as log:
                 process = subprocess.Popen(
-                    [sys.executable, "-m", "bookeeper.service", "--serve", token],
+                    [sys.executable, "-m", "bookeeper.service", "--serve", token, host],
                     stdin=subprocess.DEVNULL,
                     stdout=log,
                     stderr=subprocess.STDOUT,
@@ -96,7 +105,10 @@ class Service:
             while process.poll() is None and monotonic() < start_deadline:
                 if self.ready.is_file() and self.active():
                     started = True
-                    print(f"Bookeeper started at {URL}.")
+                    if host == ALL_INTERFACES:
+                        print(f"Bookeeper started on all interfaces at port {PORT}.")
+                    else:
+                        print(f"Bookeeper started at {URL}.")
                     return 0
                 sleep(0.1)
             print(f"Bookeeper did not start. See {self.log} for details.", file=sys.stderr)
@@ -117,12 +129,18 @@ class Service:
         return 0
 
     def restart(self) -> int:
-        return self.stop() or self.start()
+        try:
+            host = self.listen_host.read_text(encoding="ascii")
+        except FileNotFoundError:
+            host = HOST
+        if host not in {HOST, ALL_INTERFACES}:
+            host = HOST
+        return self.stop() or self.start(host)
 
 
 def main() -> int:
     args = sys.argv[1:]
-    if args and (len(args) != 2 or args[0] != "--serve"):
+    if args and (len(args) not in {2, 3} or args[0] != "--serve"):
         print("Usage: bash service.sh", file=sys.stderr)
         return 2
 
@@ -130,22 +148,31 @@ def main() -> int:
         data_dir = Path(os.environ.get("BOOKEEPER_DATA_DIR") or "instance")
         service = Service(data_dir / "service")
         if args:
-            service.serve(args[1])
+            host = args[2] if len(args) == 3 else HOST
+            if host not in {HOST, ALL_INTERFACES}:
+                print("Unsupported listen address.", file=sys.stderr)
+                return 2
+            service.serve(args[1], host)
             return 0
 
         with service.commands:
             print(f"Bookeeper status: {service.status()}")
-        print("1. Start service\n2. Stop service\n3. Restart service\n0. Exit")
+        print("1. Start service (localhost only)\n2. Stop service\n3. Restart service")
+        print("4. Start service on all interfaces (LAN accessible)\n0. Exit")
         choice = input("What would you like to do? ").strip()
-        if choice not in {"0", "1", "2", "3"}:
-            print("Choose 1 to start, 2 to stop, 3 to restart, or 0 to exit.", file=sys.stderr)
+        if choice not in {"0", "1", "2", "3", "4"}:
+            print("Choose 1 to start locally, 2 to stop, 3 to restart, 4 for all interfaces, or 0 to exit.", file=sys.stderr)
             return 2
         if choice == "0":
             return 0
         with service.commands:
             if choice == "3":
                 return service.restart()
-            return service.start() if choice == "1" else service.stop()
+            if choice == "1":
+                return service.start()
+            if choice == "4":
+                return service.start(ALL_INTERFACES)
+            return service.stop()
     except (EOFError, KeyboardInterrupt):
         return 130
     except (OSError, Timeout) as exc:

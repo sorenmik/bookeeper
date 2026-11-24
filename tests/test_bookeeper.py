@@ -16,7 +16,7 @@ from bookeeper.quotes import (
     Quote, Unavailable, _display_name, _title_variants, fallback_quote, gutenberg_sentences, needs_refresh,
     refresh_quote, wikiquote_lines,
 )
-from bookeeper.service import Service
+from bookeeper.service import ALL_INTERFACES, HOST, Service, main
 from bookeeper.version import build_version
 from bookeeper.storage import Store
 
@@ -28,7 +28,7 @@ class ServiceTests(unittest.TestCase):
     def test_restart_waits_for_successful_stop(self):
         with TemporaryDirectory() as directory:
             service = Service(Path(directory))
-            for result, expected in ((0, [call.stop(), call.start()]), (1, [call.stop()])):
+            for result, expected in ((0, [call.stop(), call.start(HOST)]), (1, [call.stop()])):
                 with self.subTest(stop_status=result):
                     actions = Mock()
                     actions.stop.return_value = result
@@ -36,6 +36,27 @@ class ServiceTests(unittest.TestCase):
                     with patch.object(service, "stop", actions.stop), patch.object(service, "start", actions.start):
                         self.assertEqual(service.restart(), result)
                     self.assertEqual(actions.mock_calls, expected)
+
+    def test_restart_preserves_all_interfaces_listener(self):
+        with TemporaryDirectory() as directory:
+            service = Service(Path(directory))
+            service.listen_host.write_text(ALL_INTERFACES, encoding="ascii")
+            with patch.object(service, "stop", return_value=0), patch.object(service, "start", return_value=0) as start:
+                self.assertEqual(service.restart(), 0)
+            start.assert_called_once_with(ALL_INTERFACES)
+
+    def test_menu_starts_on_all_interfaces(self):
+        with TemporaryDirectory() as directory:
+            with (
+                patch("bookeeper.service.Service") as service_type,
+                patch("builtins.input", return_value="4"),
+                patch.dict("os.environ", {"BOOKEEPER_DATA_DIR": directory}),
+                patch("sys.argv", ["service"]),
+            ):
+                service_type.return_value.status.return_value = "Stopped"
+                service_type.return_value.start.return_value = 0
+                self.assertEqual(main(), 0)
+            service_type.return_value.start.assert_called_once_with(ALL_INTERFACES)
 
 
 class CatalogTests(unittest.TestCase):

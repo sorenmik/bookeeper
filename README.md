@@ -23,8 +23,10 @@ bash service.sh
 
 The setup script prompts for a username and a non-empty password. It only
 works before any account exists. The menu shows the current status. Choose
-**1** to start Bookeeper in the background, **2** to stop it, **3** to restart
-it, or **0** to exit without changes.
+**1** to start Bookeeper on localhost, **2** to stop it, **3** to restart it,
+**4** to start it on all network interfaces, or **0** to exit without changes.
+Starting on all interfaces makes Bookeeper accessible to other devices on your
+LAN; only use it on a trusted network.
 
 To add another household member, run:
 
