@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "move.html" import target_select %}
+{% block title %}{{ storage.name }} · Bookeeper{% endblock %}
+{% block content %}
+<div class="heading">
+    <h1>{{ storage.name }}</h1>
+    <a href="{{ url_for('locations') }}">Back to the map</a>
+</div>
+<p class="muted">{{ units|length }} {{ 'unit' if units|length == 1 else 'units' }} · {{ book_count }} {{ 'book' if book_count == 1 else 'books' }}</p>
+<form class="card fields" method="post" action="{{ url_for('edit_storage', key=storage.id) }}">
+    <h2>Rename</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Name <input name="name" required maxlength="80" value="{{ storage.name }}"></label>
+    <button type="submit" class="primary">Save</button>
+</form>
+<form class="card fields" method="post" action="{{ url_for('delete_storage', key=storage.id) }}"
+      data-confirm="Remove {{ storage.name }} with all {{ units|length }} units{% if book_count %} and move its {{ book_count }} books{% endif %}?">
+    <h2>Remove</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <p class="muted">Removing a storage also removes its units.</p>
+    {% if book_count %}{{ target_select(slot_groups, 'Move its ' ~ book_count ~ ' books to') }}{% endif %}
+    <button type="submit">Remove storage</button>
+</form>
+{% endblock %}

@@ -63,12 +63,15 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(self.post("/login", username=username, password=PASSWORD).status_code, 302)
         self.assertEqual(self.client.get("/").status_code, 200)
 
-    def add_location(self, kind, name, parent_id=""):
-        self.assertEqual(self.post("/locations", kind=kind, name=name, parent_id=parent_id).status_code, 302)
-        return next(
-            key for key, item in self.store.read()["locations"].items()
-            if item["name"] == name and item["parent_id"] == parent_id
+    def add_storage(self, name):
+        self.assertEqual(self.post("/storages", name=name).status_code, 302)
+        return next(key for key, item in self.store.read()["storages"].items() if item["name"] == name)
+
+    def add_unit(self, storage_id, kind, name, cols=1, rows=1):
+        self.assertEqual(
+            self.post("/units", storage_id=storage_id, kind=kind, name=name, cols=cols, rows=rows).status_code, 302
         )
+        return next(key for key, item in self.store.read()["units"].items() if item["name"] == name)
 
     def test_household_sign_in_and_csrf(self):
         self.assertEqual(self.client.get("/").location, "/login")
@@ -86,31 +89,83 @@ class CatalogTests(unittest.TestCase):
 
     def test_copies_can_share_an_isbn_and_move_independently(self):
         self.login()
-        room = self.add_location("room", "Study")
-        case = self.add_location("bookcase", "Oak case", room)
-        shelf = self.add_location("shelf", "Top shelf", case)
-        pile = self.add_location("pile", "Reading pile", room)
+        study = self.add_storage("Study")
+        case = self.add_unit(study, "cabinet", "Oak case", 3, 2)
+        pile = self.add_unit(study, "pile", "Reading pile")
+        shelf, other_slot = f"{case}:1:1", f"{pile}:1:1"
         self.assertIn(b"Oak case", self.client.get("/locations").data)
         first = self.post("/copies/new", title="Pride and Prejudice", isbn="0-14-143951-3", location_id=shelf)
         self.assertEqual(first.status_code, 302)
-        other = dict(title="Pride and Prejudice", isbn="9780141439518", location_id=pile)
+        other = dict(title="Pride and Prejudice", isbn="9780141439518", location_id=other_slot)
         warning = self.post("/copies/new", **other)
         self.assertEqual(warning.status_code, 409)
         self.assertIn(b"Add another copy anyway", warning.data)
         self.assertEqual(len(self.store.read()["copies"]), 1)
         self.assertEqual(self.post("/copies/new", allow_duplicate="yes", **other).status_code, 302)
         copies = self.store.read()["copies"]
-        self.assertEqual({item["location_id"] for item in copies.values()}, {shelf, pile})
-        self.assertIn(b"2 copies", self.client.get(f"/?location={room}").data)
+        self.assertEqual({item["location_id"] for item in copies.values()}, {shelf, other_slot})
+        self.assertIn(b"2 copies", self.client.get(f"/?location={study}").data)
         result = self.client.get(f"/?location={shelf}&q=0-14-143951-3")
-        self.assertIn(b"Study / Oak case / Top shelf", result.data)
-        self.assertNotIn(b"Reading pile</p>", result.data)
-        self.assertEqual(self.post(f"/locations/{shelf}/delete").status_code, 409)
+        self.assertIn("Study › Oak case › R1C1".encode(), result.data)
+        self.assertNotIn("Study › Reading pile</a>".encode(), result.data)
+        self.assertEqual(self.post("/copies/new", title="Bad", location_id=f"{case}:3:1").status_code, 400)
         first_id = next(key for key, item in copies.items() if item["location_id"] == shelf)
         self.assertEqual(self.post(f"/copies/{first_id}/edit", title=other["title"]).status_code, 302)
-        self.assertEqual(self.post(f"/locations/{shelf}/delete").status_code, 302)
         self.assertEqual(self.post(f"/copies/{first_id}/delete").status_code, 302)
         self.assertEqual(len(self.store.read()["copies"]), 1)
+
+    def test_shelf_map_search_and_bulk_move(self):
+        self.login()
+        kitchen = self.add_storage("Kitchen")
+        cabinet = self.add_unit(kitchen, "cabinet", "Cabinet A", 5, 5)
+        shelf = self.add_unit(kitchen, "shelf", "Wall shelf", 4, 3)
+        self.assertEqual(self.store.read()["units"][shelf]["rows"], 1)
+        self.assertEqual(self.post("/units", storage_id=kitchen, kind="shelf", name="Wall shelf").status_code, 409)
+        top_left, wall = f"{cabinet}:1:1", f"{shelf}:1:2"
+        self.assertEqual(self.post(f"/slots/{top_left}", name="top-left").status_code, 302)
+        for title in ("Dune", "Emma", "Ulysses"):
+            self.post("/copies/new", title=title, location_id=top_left)
+        self.post("/copies/new", title="Loose book")
+        slot_page = self.client.get(f"/slots/{top_left}")
+        self.assertIn("Kitchen › Cabinet A › top-left".encode(), slot_page.data)
+        self.assertIn(b"Ulysses", slot_page.data)
+        highlighted = self.client.get("/locations", query_string={"slot": top_left})
+        self.assertIn(b"is-target", highlighted.data)
+        self.assertIn(b"1 unplaced book", highlighted.data)
+        self.assertEqual(self.client.get("/locations?slot=missing").status_code, 404)
+        self.assertIn(b"Dune", self.client.get("/", query_string={"q": "dnue"}).data)
+        self.assertNotIn(b"Emma", self.client.get("/", query_string={"q": "dnue"}).data)
+        self.assertIn(b"Loose book", self.client.get("/", query_string={"location": "unplaced"}).data)
+        self.assertNotIn(b"Dune", self.client.get("/", query_string={"location": "unplaced"}).data)
+        copies = self.store.read()["copies"]
+        ids = {item["title"]: key for key, item in copies.items()}
+        self.assertEqual(self.post("/books/move", target=wall).status_code, 400)
+        self.assertEqual(self.post("/books/move", target="bad", book=ids["Dune"]).status_code, 400)
+        moved = self.post("/books/move", target=wall, book=[ids["Dune"], ids["Emma"]], next=f"/slots/{top_left}")
+        self.assertEqual((moved.status_code, moved.location), (302, f"/slots/{top_left}"))
+        self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], wall)
+        self.assertEqual(self.post("/books/undo-move").status_code, 302)
+        self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], top_left)
+        self.assertEqual(self.post("/books/move", target=wall, source=cabinet).status_code, 302)
+        self.assertEqual({book["location_id"] for book in self.store.read()["copies"].values()}, {wall, ""})
+        # Shrinking and removing units never deletes books.
+        self.assertEqual(self.post(f"/units/{shelf}", name="Wall shelf", cols=1, target=top_left).status_code, 302)
+        self.assertEqual(self.store.read()["copies"][ids["Dune"]]["location_id"], top_left)
+        self.assertEqual(self.post(f"/units/{cabinet}/delete").status_code, 302)
+        self.assertEqual({book["location_id"] for book in self.store.read()["copies"].values()}, {""})
+        self.assertEqual(len(self.store.read()["copies"]), 4)
+
+    def test_old_floor_plan_snapshot_restores_books_unplaced(self):
+        self.login()
+        self.assertEqual(self.post("/copies/new", title="Kept").status_code, 302)
+        key = next(iter(self.store.read()["copies"]))
+        old = {
+            "version": 1, "reading": {}, "loans": {}, "copies": {key: {**self.store.read()["copies"][key], "location_id": "c" * 32}},
+            "locations": {"c" * 32: {"id": "c" * 32, "kind": "shelf", "name": "Old", "parent_id": ""}},
+        }
+        restore = self.post("/backup/restore", confirm="yes", snapshot=(io.BytesIO(json.dumps(old).encode()), "old.json"))
+        self.assertEqual(restore.status_code, 302)
+        self.assertEqual(self.store.read()["copies"][key]["location_id"], "")
 
     def test_manual_entry_search_and_validation(self):
         self.login()
@@ -259,8 +314,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(b"Marking it bought adds another copy.", wishlist.data)
         self.assertIn("no-store", wishlist.headers["Cache-Control"])
 
-    def test_locations_and_wishlist_show_add_forms_only_when_requested(self):
-        self.submit(self.owner, "/locations", kind="room", name="Study")
+    def test_storages_and_wishlist_show_add_forms_only_when_requested(self):
+        self.submit(self.owner, "/storages", name="Study")
         self.submit(self.owner, "/wishlist", title="Wanted title")
         for path, item, field in (("/locations", b"Study", b'name="name"'), ("/wishlist", b"Wanted title", b'name="title"')):
             with self.subTest(path=path):
@@ -332,7 +387,7 @@ class WorkflowTests(unittest.TestCase):
         download = self.owner.get(f"/backup/snapshot/{filename}")
         snapshot = download.data
         download.close()
-        self.assertEqual(set(json.loads(snapshot)), {"version", "copies", "locations", "reading", "loans"})
+        self.assertEqual(set(json.loads(snapshot)), {"version", "copies", "storages", "units", "reading", "loans"})
         self.assertNotIn(b"Private note", snapshot)
         self.assertNotIn(b"Wishlist secret", snapshot)
         export = self.owner.get("/backup/catalog.csv")
@@ -495,19 +550,30 @@ class DataTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory)
 
-            def add_room(index):
+            def add_storage(index):
                 key = str(index)
                 with Store(path).edit() as library:
-                    library["locations"][key] = {"id": key, "kind": "room", "name": key, "parent_id": ""}
+                    library["storages"][key] = {"id": key, "name": key}
 
             with ThreadPoolExecutor(max_workers=4) as pool:
-                list(pool.map(add_room, range(20)))
+                list(pool.map(add_storage, range(20)))
             store = Store(path)
-            self.assertEqual(len(store.read()["locations"]), 20)
+            self.assertEqual(len(store.read()["storages"]), 20)
             with self.assertRaises(ValueError), store.edit() as library:
-                library["locations"].clear()
+                library["storages"].clear()
                 raise ValueError("Cancel the edit")
-            self.assertEqual(len(store.read()["locations"]), 20)
+            self.assertEqual(len(store.read()["storages"]), 20)
+
+    def test_old_floor_plans_are_discarded_on_read(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory)
+            old = {"session_key": "", "users": {}, "locations": {"a" * 32: {"id": "a" * 32, "kind": "room", "name": "Study", "parent_id": ""}},
+                   "copies": {"b" * 32: dict(id="b" * 32, title="T", author="", series="", isbn="", tags=[], location_id="a" * 32)}}
+            (path / "library.json").write_text(json.dumps(old), encoding="utf-8")
+            library = Store(path).read()
+            self.assertNotIn("locations", library)
+            self.assertEqual((library["storages"], library["units"]), ({}, {}))
+            self.assertEqual(library["copies"]["b" * 32]["location_id"], "")
 
     def test_open_library_query_and_response(self):
         key = "ISBN:9780141439518"

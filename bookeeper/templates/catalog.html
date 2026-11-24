@@ -12,7 +12,8 @@
     <label>Location
         <select name="location">
             <option value="">Everywhere</option>
-            {% for key, label in labels|dictsort(by='value') %}
+            <option value="{{ unplaced }}" {% if selected == unplaced %}selected{% endif %}>Unplaced</option>
+            {% for key, label in location_options %}
                 <option value="{{ key }}" {% if selected == key %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
         </select>
@@ -42,6 +43,7 @@
             <div class="catalog-title">
                 <h2><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a></h2>
                 {% if book.author %}<p class="muted">{{ book.author }}</p>{% endif %}
+                <p class="book-location">{% if book.location_id %}<a href="{{ url_for('locations', slot=book.location_id) }}#slot-{{ book.location_id|replace(':', '-') }}" title="Show on the map">{{ labels[book.location_id] }}</a>{% else %}<span class="muted">Unplaced</span>{% endif %}</p>
             </div>
             <p class="catalog-synopsis muted">{{ (book.summary or '')|striptags|truncate(150, false, '…', 0) if book.summary else '' }}</p>
             <span class="reading-badge status-{{ status }}">{{ status|capitalize }}</span>

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "move.html" import target_select %}
+{% block title %}{{ label }} · Bookeeper{% endblock %}
+{% block content %}
+{% set here = url_for('show_slot', slot_id=slot_id) %}
+<div class="heading">
+    <h1>{{ label }}</h1>
+    <div class="actions">
+        <a class="button" href="{{ url_for('locations', slot=slot_id) }}">Show on the map</a>
+        <a href="{{ url_for('edit_unit', key=unit.id) }}">Edit unit</a>
+    </div>
+</div>
+<p class="muted">{{ books|length }} {{ 'book' if books|length == 1 else 'books' }}{% if books|length >= capacity %} · full{% endif %}</p>
+{% if last_move %}
+<form class="actions" method="post" action="{{ url_for('undo_move') }}">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="hidden" name="next" value="{{ here }}">
+    <button type="submit">Undo: {{ last_move.description }}</button>
+</form>
+{% endif %}
+{% if books %}
+<form method="post" action="{{ url_for('move_books') }}" data-confirm="Move {n} selected from {{ label }}?" data-select="book">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="hidden" name="next" value="{{ here }}">
+    <ul class="card compact-list catalog-list" aria-label="Books in this slot">
+        {% for book in books %}
+        <li>
+            <label class="check"><input type="checkbox" name="book" value="{{ book.id }}" aria-label="Select {{ book.title }}">
+                <span><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a>{% if book.author %} <span class="muted">· {{ book.author }}</span>{% endif %}</span>
+            </label>
+        </li>
+        {% endfor %}
+    </ul>
+    <div class="actions fields">
+        <label class="check"><input type="checkbox" data-select-all> Select all</label>
+        {{ target_select(slot_groups, 'Move selected to', slot_id) }}
+        <button type="submit" class="primary">Move selected</button>
+    </div>
+</form>
+<form class="actions fields" method="post" action="{{ url_for('move_books') }}"
+      data-confirm="Move all {{ books|length }} books from {{ label }}?">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="hidden" name="next" value="{{ here }}">
+    <input type="hidden" name="source" value="{{ slot_id }}">
+    {{ target_select(slot_groups, 'Move every book to', slot_id) }}
+    <button type="submit">Move all</button>
+</form>
+{% else %}
+    <p class="card">This slot is empty.</p>
+{% endif %}
+{% if unit.kind not in ('box', 'pile') %}
+<form class="card fields" method="post" action="{{ here }}">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Slot name <input name="name" value="{{ custom_name }}" maxlength="80" placeholder="{{ name }}"></label>
+    <p class="muted">Leave empty to use the automatic name ({{ name }}).</p>
+    <button type="submit">Save name</button>
+</form>
+{% endif %}
+{% endblock %}

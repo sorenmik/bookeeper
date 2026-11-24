@@ -7,8 +7,9 @@ import qrcode
 import qrcode.image.svg
 from flask import Blueprint, Flask, Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from .catalog import find_duplicate, fold, location_label, normalize_isbn
+from .catalog import find_duplicate, fold, normalize_isbn
 from .dashboard import activity
+from .places import slot_labels
 from .storage import BookCopy, Library, Loan, Reading, Store
 
 
@@ -125,9 +126,7 @@ def register_workflows(app: Flask, store: Store) -> None:
                 available=sorted(
                     (copy for copy in library["copies"].values() if copy["id"] not in lent),
                     key=lambda copy: fold(copy["title"]),
-                ), today=today, labels={
-                    key: location_label(key, library["locations"]) for key in library["locations"]
-                },
+                ), today=today, labels=slot_labels(library),
             )
         direction = request.form.get("direction")
         person = request.form.get("person", "").strip()
@@ -205,32 +204,8 @@ def register_workflows(app: Flask, store: Store) -> None:
             key=lambda copy: tuple((not value, value) for value in (fold(copy.get(field, "")) for field in order)),
         )
         return render_template(
-            "sorting.html", order=order, allowed=allowed, copies=copies,
-            labels={key: location_label(key, library["locations"]) for key in library["locations"]},
+            "sorting.html", order=order, allowed=allowed, copies=copies, labels=slot_labels(library),
         )
-
-    @pages.get("/floor")
-    def floor() -> str:
-        locations = store.read()["locations"]
-        return render_template("floor.html", rooms=[room for room in locations.values() if room["kind"] == "room"],
-                               locations=locations)
-
-    @pages.post("/floor/<key>/position")
-    def position(key: str) -> Response:
-        try:
-            x, y = int(request.form.get("x", "")), int(request.form.get("y", ""))
-        except ValueError:
-            abort(400, "Enter whole-number coordinates.")
-        if not (0 <= x <= 100 and 0 <= y <= 100):
-            abort(400, "Coordinates must be in the range 0 to 100.")
-        with store.edit() as library:
-            location = library["locations"].get(key)
-            if not location or location["kind"] not in {"bookcase", "pile"}:
-                abort(404)
-            location["x"], location["y"] = x, y
-        if request.form.get("drag") == "1":
-            return Response(status=204)
-        return redirect(url_for("household.floor"))
 
     def public_url() -> str:
         url = current_app.config["PUBLIC_URL"] or request.url_root

@@ -9,7 +9,8 @@ from uuid import uuid4
 
 from flask import Blueprint, Flask, Response, abort, flash, g, redirect, render_template, request, send_file, url_for
 
-from .catalog import COPY_LOCATIONS, LOCATION_PARENTS, location_label, positive_number
+from .catalog import positive_number
+from .places import MAX_SIDE, UNIT_KINDS, fit_size, parse_slot, slot_label
 from .storage import Library, Store
 from .workflows import READING_STATUSES, iso_date
 
@@ -40,19 +41,34 @@ def validate_backup(data: bytes) -> dict:
     if len(data) > MAX_BACKUP:
         raise ValueError("The snapshot is larger than 16 MiB.")
     payload = json.loads(data)
-    if not isinstance(payload, dict) or type(payload.get("version")) is not int or payload["version"] != 1:
+    if not isinstance(payload, dict) or type(payload.get("version")) is not int or payload["version"] not in (1, 2):
         raise ValueError("Unsupported backup version.")
-    need(set(payload) == {"version", "copies", "locations", "reading", "loans"})
-    locations, copies, reading, loans = (records(key) for key in ("locations", "copies", "reading", "loans"))
-    for key, item in locations.items():
-        need(set(item) <= {"id", "kind", "name", "parent_id", "x", "y"})
-        need(strings(item, "id", "kind", "name", "parent_id") and item["id"] == key and bool(item["name"].strip()))
-        need(item["kind"] in LOCATION_PARENTS)
-        parent_kind = LOCATION_PARENTS[item["kind"]]
-        parent = item["parent_id"]
-        need(not parent if parent_kind is None else parent in locations and locations[parent].get("kind") == parent_kind)
-        for axis in ("x", "y"):
-            need(axis not in item or type(item[axis]) is int and 0 <= item[axis] <= 100)
+    legacy = payload["version"] == 1
+    need(set(payload) == {"version", "copies", "locations" if legacy else "storages", *(() if legacy else ("units",)), "reading", "loans"})
+    copies, reading, loans = (records(key) for key in ("copies", "reading", "loans"))
+    if legacy:
+        # Room/bookcase/shelf floor plans are no longer supported; books come back unplaced.
+        records("locations")
+        payload = {"version": 2, "storages": {}, "units": {}, "copies": {
+            key: {**book, "location_id": ""} if isinstance(book, dict) else book for key, book in copies.items()
+        }, "reading": reading, "loans": loans}
+        copies = payload["copies"]
+    storages, units = records("storages"), records("units")
+    for key, item in storages.items():
+        need(set(item) == {"id", "name"} and strings(item, "id", "name") and item["id"] == key and bool(item["name"].strip()))
+    for key, item in units.items():
+        need(set(item) == {"id", "storage_id", "kind", "name", "cols", "rows", "x", "y", "slot_names"})
+        need(strings(item, "id", "storage_id", "kind", "name") and item["id"] == key and bool(item["name"].strip()))
+        need(item["storage_id"] in storages and item["kind"] in UNIT_KINDS)
+        need(all(type(item[axis]) is int and 1 <= item[axis] <= MAX_SIDE for axis in ("cols", "rows")))
+        need(fit_size(item["kind"], item["cols"], item["rows"]) == (item["cols"], item["rows"]))
+        need(all(type(item[axis]) is int and 0 <= item[axis] <= 100 for axis in ("x", "y")))
+        names = item["slot_names"]
+        need(isinstance(names, dict) and all(
+            isinstance(name, str) and isinstance(label, str) and re.fullmatch(r"[0-9]{1,2}:[0-9]{1,2}", name)
+            and 1 <= int(name.split(":")[0]) <= item["rows"] and 1 <= int(name.split(":")[1]) <= item["cols"]
+            for name, label in names.items()
+        ))
     for key, book in copies.items():
         need(set(book) <= {"id", "location_id", "tags", *CATALOG_FIELDS})
         need(strings(book, "id", "title", "author", "series", "isbn", "location_id") and book["id"] == key)
@@ -66,8 +82,7 @@ def validate_backup(data: bytes) -> dict:
         if "added_on" in book:
             need(strings(book, "added_on"))
             iso_date(book["added_on"])
-        location = book["location_id"]
-        need(not location or location in locations and locations[location]["kind"] in COPY_LOCATIONS)
+        need(not book["location_id"] or parse_slot(book["location_id"], units) is not None)
     for key, item in reading.items():
         need(set(item) == {"status", "dates"})
         need(key in copies and item.get("status") in READING_STATUSES and isinstance(item.get("dates"), list))
@@ -94,7 +109,7 @@ def validate_backup(data: bytes) -> dict:
 
 def snapshot_bytes(library: Library) -> bytes:
     return json.dumps({
-        "version": 1, "copies": library["copies"], "locations": library["locations"],
+        "version": 2, "copies": library["copies"], "storages": library["storages"], "units": library["units"],
         "reading": library.get("reading", {}), "loans": library.get("loans", {}),
     }, ensure_ascii=False, indent=2).encode("utf-8")
 
@@ -168,7 +183,9 @@ def register_backups(app: Flask, store: Store) -> None:
         with store.edit() as library:
             save_snapshot(library)
             library["copies"] = restored["copies"]
-            library["locations"] = restored["locations"]
+            library["storages"] = restored["storages"]
+            library["units"] = restored["units"]
+            library.pop("last_move", None)
             library["reading"] = restored["reading"]
             library["loans"] = restored["loans"]
         flash("Shared library restored. A snapshot of the previous catalog was saved.", "success")
@@ -183,7 +200,7 @@ def register_backups(app: Flask, store: Store) -> None:
         for book in library["copies"].values():
             writer.writerow([csv_cell(str(book.get(field) or "")) for field in CATALOG_FIELDS] + [
                 csv_cell(", ".join(book["tags"])),
-                csv_cell(location_label(book["location_id"], library["locations"])),
+                csv_cell(slot_label(book["location_id"], library)),
             ])
         return send_file(io.BytesIO(output.getvalue().encode("utf-8-sig")), mimetype="text/csv",
                          as_attachment=True, download_name="bookeeper-catalog.csv", max_age=0)

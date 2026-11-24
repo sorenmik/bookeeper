@@ -14,8 +14,8 @@ It should be a webpage made in Python.
 - Look up book details and summaries by ISBN using Open Library. Enter missing details manually and show the location of any owned copies.
 - Search page for finding books by title, author, series, tag, or ISBN. Filter by room, shelf, reading status, or loan status.
 - Each household account has its own private wishlist. When a member marks a book as bought, automatically move it from their wishlist into the shared inventory.
-- Use a drag-and-drop floor plan for each room, with movable bookcases and standalone piles. Show the room, bookcase, and shelf (or pile) where a copy is located.
-    - Allow adding, naming, and removing shelves within each bookcase.
+- Side-view shelf map: storages contain cabinets (n×m), shelves, boxes and piles, with books assigned to slots. Done: path display, search, filters, unplaced list, bulk move with undo.
+    - Later: pick move targets on the map, zoom/pan, quick assign, labels/QR.
     - Posibillity to add personal notes to books
 - Page where the software can recommend how to sort the books by genre, type, author etc
 - Shared household reading history with statuses (unread, reading, finished, abandoned) and a finish date for each read, including rereads.

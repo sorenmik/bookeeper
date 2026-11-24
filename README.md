@@ -50,8 +50,10 @@ and an adventure-game verb bar with an inventory. Animations
 stop when your device asks for reduced motion. Copies added before date
 tracking began still count in the catalog total but not in the chart’s “Added”
 series. The **Stats** tab also shows the reading-status breakdown and top genres.
-Under **Locations**, use **Add location** to create a room, then a bookcase
-and shelf or a standalone pile. Use **Add wish** on the wishlist to open its
+Under **Locations**, use **Add storage or unit** to create a storage (such as a
+kitchen), then add cabinets (n×m grid of slots), shelves, boxes or piles and drag
+them into place on the side-view map. Select a slot to see, rename or bulk-move its
+books; the last move can be undone. Search results show each book’s full path. Use **Add wish** on the wishlist to open its
 entry form. Use **Add a copy** to
 enter a book manually or look up its ISBN. When Open Library has the data,
 lookup fills blank fields for title, author, summary, genre (suggested from

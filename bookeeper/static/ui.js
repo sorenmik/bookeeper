@@ -52,67 +52,101 @@ if (navToggle) {
     });
 }
 
-for (const item of document.querySelectorAll(".map-token")) {
-    const floor = item.closest(".floor");
-    const status = floor.parentElement.querySelector(".floor-status");
-    const form = document.getElementById(item.dataset.form);
+for (const unit of document.querySelectorAll(".unit")) {
+    const canvas = unit.closest(".zone-canvas");
+    const status = document.querySelector(".floor-status");
+    const handle = unit.querySelector(".unit-handle");
     let drag;
     let saving = false;
+    const cellSize = () => {
+        const probe = document.createElement("div");
+        probe.style.width = "var(--cell)";
+        canvas.append(probe);
+        const size = probe.offsetWidth;
+        probe.remove();
+        return size;
+    };
     function place(x, y) {
-        item.style.left = `${(floor.clientWidth - item.offsetWidth) * x / 100}px`;
-        item.style.top = `${(floor.clientHeight - item.offsetHeight) * y / 100}px`;
+        unit.style.setProperty("--x", x);
+        unit.style.setProperty("--y", y);
     }
-    function position(event) {
-        const rect = floor.getBoundingClientRect();
-        const percent = (offset, dimension) => Math.round(Math.min(100, Math.max(0, 100 * offset / dimension)));
+    function cells(event) {
+        const rect = canvas.getBoundingClientRect();
+        const size = cellSize();
         return [
-            percent(event.clientX - rect.left - floor.clientLeft - drag.dx, floor.clientWidth - item.offsetWidth),
-            percent(event.clientY - rect.top - floor.clientTop - drag.dy, floor.clientHeight - item.offsetHeight),
+            Math.max(0, Math.min(199, Math.round((event.clientX - rect.left - canvas.clientLeft + canvas.scrollLeft - drag.dx) / size))),
+            Math.max(0, Math.min(199, Math.round((event.clientY - rect.top - canvas.clientTop + canvas.scrollTop - drag.dy) / size))),
         ];
     }
-    place(item.dataset.x, item.dataset.y);
-    window.addEventListener("resize", () => place(item.dataset.x, item.dataset.y));
-    item.addEventListener("pointerdown", (event) => {
-        if (!event.isPrimary || event.button !== 0 || saving) return;
-        const rect = item.getBoundingClientRect();
-        drag = {id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top};
-        item.setPointerCapture(event.pointerId);
-    });
-    item.addEventListener("pointermove", (event) => {
-        if (drag?.id === event.pointerId) place(...position(event));
-    });
-    item.addEventListener("pointercancel", () => {
-        drag = null;
-        place(item.dataset.x, item.dataset.y);
-    });
-    item.addEventListener("pointerup", async (event) => {
-        if (drag?.id !== event.pointerId) return;
-        const [x, y] = position(event);
-        drag = null;
-        if (x === Number(item.dataset.x) && y === Number(item.dataset.y)) return;
-        const data = new URLSearchParams(new FormData(form));
-        data.set("x", x);
-        data.set("y", y);
-        data.set("drag", "1");
+    async function save(x, y) {
+        if (saving) return;
         saving = true;
+        const data = new URLSearchParams({csrf: canvas.dataset.csrf, x, y});
         try {
-            const response = await fetch(form.action, {method: "POST", body: data});
+            const response = await fetch(unit.dataset.url, {method: "POST", body: data});
             if (response.status !== 204) throw new Error("Position not saved");
-            item.dataset.x = form.elements.x.value = x;
-            item.dataset.y = form.elements.y.value = y;
-            place(x, y);
+            unit.dataset.x = x;
+            unit.dataset.y = y;
             status.textContent = "Position saved.";
         } catch {
-            place(item.dataset.x, item.dataset.y);
-            status.textContent = "Could not save the position. Reload or use the coordinate form.";
+            place(unit.dataset.x, unit.dataset.y);
+            status.textContent = "Could not save the position. Reload and try again.";
         } finally {
             saving = false;
         }
+    }
+    handle.addEventListener("pointerdown", (event) => {
+        if (!event.isPrimary || event.button !== 0 || saving) return;
+        const rect = unit.getBoundingClientRect();
+        drag = {id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top};
+        handle.setPointerCapture(event.pointerId);
+        unit.classList.add("is-dragging");
     });
-    item.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
+    handle.addEventListener("pointermove", (event) => {
+        if (drag?.id === event.pointerId) place(...cells(event));
+    });
+    handle.addEventListener("pointercancel", () => {
+        drag = null;
+        unit.classList.remove("is-dragging");
+        place(unit.dataset.x, unit.dataset.y);
+    });
+    handle.addEventListener("pointerup", (event) => {
+        if (drag?.id !== event.pointerId) return;
+        const [x, y] = cells(event);
+        drag = null;
+        unit.classList.remove("is-dragging");
+        place(x, y);
+        if (x !== Number(unit.dataset.x) || y !== Number(unit.dataset.y)) save(x, y);
+    });
+    handle.addEventListener("keydown", (event) => {
+        const step = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[event.key];
+        if (!step) return;
+        event.preventDefault();
+        const x = Math.max(0, Math.min(199, Number(unit.dataset.x) + step[0]));
+        const y = Math.max(0, Math.min(199, Number(unit.dataset.y) + step[1]));
+        place(x, y);
+        save(x, y);
+    });
+}
+
+document.querySelector(".slot.is-target")?.scrollIntoView({block: "center", inline: "center"});
+
+for (const form of document.querySelectorAll("form[data-confirm]")) {
+    form.addEventListener("submit", (event) => {
+        const field = form.dataset.select;
+        const chosen = field ? form.querySelectorAll(`input[name="${field}"]:checked`).length : 0;
+        if (field && !chosen) {
             event.preventDefault();
-            form.elements.x.focus();
+            alert("Select at least one book first.");
+            return;
         }
+        const count = `${chosen} ${chosen === 1 ? "book" : "books"}`;
+        if (!confirm(form.dataset.confirm.replace("{n}", count))) event.preventDefault();
+    });
+}
+
+for (const all of document.querySelectorAll("[data-select-all]")) {
+    all.addEventListener("change", () => {
+        for (const box of all.form.querySelectorAll('input[name="book"]')) box.checked = all.checked;
     });
 }

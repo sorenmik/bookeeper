@@ -14,7 +14,7 @@
         <input type="hidden" name="direction" value="lent">
         <label>Library copy <select name="copy_id" required>
             <option value="">Choose a copy</option>
-            {% for book in available %}<option value="{{ book.id }}">{{ book.title }}{% if book.author %} — {{ book.author }}{% endif %} · {{ labels.get(book.location_id, 'Unassigned') }} [{{ book.id[-6:] }}]</option>{% endfor %}
+            {% for book in available %}<option value="{{ book.id }}">{{ book.title }}{% if book.author %} — {{ book.author }}{% endif %} · {{ labels.get(book.location_id, 'Unplaced') }} [{{ book.id[-6:] }}]</option>{% endfor %}
         </select></label>
         {{ details() }}
     </form>

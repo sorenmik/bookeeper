@@ -16,7 +16,7 @@
 <ol class="sort-list">
     {% for book in copies %}
         <li><a href="{{ url_for('edit_copy', copy_id=book.id) }}">{{ book.title }}</a>
-            <span class="muted">{{ [book.author, book.get('genre', ''), book.get('format', ''), labels.get(book.location_id, 'Unassigned')]|select|join(' · ') }}</span></li>
+            <span class="muted">{{ [book.author, book.get('genre', ''), book.get('format', ''), labels.get(book.location_id, 'Unplaced')]|select|join(' · ') }}</span></li>
     {% else %}<li>No books to sort.</li>{% endfor %}
 </ol>
 {% endblock %}

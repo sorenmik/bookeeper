@@ -15,24 +15,22 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.wrappers import Response
 
 from .catalog import (
-    COPY_LOCATIONS,
-    LOCATION_PARENTS,
     LookupUnavailable,
     fill_book_metadata,
     find_duplicate,
-    fold,
-    location_label,
     lookup_isbn,
     normalize_isbn,
     positive_number,
     search_copies,
 )
+from .places import UNPLACED, filter_options, parse_slot, slot_label, slot_labels, slot_options, valid_filter
+from .shelves import register_shelves
 from .workflows import READING_STATUSES, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
 from .dashboard import activity
 from .quotes import needs_refresh, quote_for_display, refresh_quote
 from .version import build_version
-from .storage import BookCopy, LocationKind, Store
+from .storage import BookCopy, Store
 
 
 def create_app(config: dict[str, object] | None = None) -> Flask:
@@ -240,13 +238,12 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     @app.get("/catalog")
     def catalog() -> str:
         library = store.read()
-        locations = library["locations"]
         query = request.args.get("q", "")
         selected = request.args.get("location", "")
         reading_status = request.args.get("reading", "")
         loan_status = request.args.get("loan", "")
         lent = {loan["copy_id"] for loan in library.get("loans", {}).values() if not loan["returned"]}
-        if selected and selected not in locations:
+        if selected and not valid_filter(selected, library):
             abort(404, "That location does not exist.")
         return render_template(
             "catalog.html",
@@ -255,9 +252,11 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                     copy for copy in library["copies"].values()
                     if (not reading_status or reading_for(library, copy["id"])["status"] == reading_status)
                     and (not loan_status or loan_status == ("lent" if copy["id"] in lent else "available"))
-                ), locations, query, selected
+                ), library["units"], query, selected
             ),
-            labels={key: location_label(key, locations) for key in locations},
+            labels=slot_labels(library),
+            location_options=filter_options(library),
+            unplaced=UNPLACED,
             query=query,
             selected=selected,
             reading=library.get("reading", {}),
@@ -337,10 +336,8 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                     with store.edit() as latest:
                         if copy_id is not None and copy_id not in latest["copies"]:
                             abort(404)
-                        if book["location_id"]:
-                            location = latest["locations"].get(book["location_id"])
-                            if location is None or location["kind"] not in COPY_LOCATIONS:
-                                raise CopyFormError("Choose a shelf or pile, or leave the copy unassigned.")
+                        if book["location_id"] and parse_slot(book["location_id"], latest["units"]) is None:
+                            raise CopyFormError("Choose a slot from the list, or leave the copy unplaced.")
                         if copy_id is None and request.form.get("allow_duplicate") != "yes":
                             if find_duplicate(book, latest["copies"].values()):
                                 duplicate = True
@@ -357,7 +354,6 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                 if action != "lookup":
                     flash("Copy updated." if copy_id is not None else "Copy added.", "success")
                     return redirect(url_for("catalog"))
-        locations = library["locations"]
         page = render_template(
             "copy.html",
             book=book,
@@ -370,15 +366,12 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             note=library.get("notes", {}).get(g.user, {}).get(copy_id or "", ""),
             matches=(
                 [
-                    (item["id"], location_label(item["location_id"], locations) or "Unassigned")
+                    (item["id"], slot_label(item["location_id"], library) or "Unplaced")
                     for item in library["copies"].values() if item["isbn"] == book["isbn"]
                 ] if book["isbn"] and request.form.get("action") == "lookup" else []
             ),
-            labels={
-                key: location_label(key, locations)
-                for key, location in locations.items()
-                if location["kind"] in COPY_LOCATIONS
-            },
+            slot_groups=slot_options(library),
+            location_path=slot_label(book["location_id"], library),
         )
         if error:
             return page, 409 if duplicate else 400
@@ -404,58 +397,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         flash("Copy removed.", "success")
         return redirect(url_for("catalog"))
 
-    @app.get("/locations")
-    def locations() -> str:
-        entries = store.read()["locations"]
-        return render_template(
-            "locations.html",
-            locations=entries,
-            labels={key: location_label(key, entries) for key in entries},
-            floor_url=url_for("household.floor"),
-        )
-
-    @app.post("/locations")
-    def add_location() -> Response:
-        kind: LocationKind
-        match request.form.get("kind"):
-            case "room" | "bookcase" | "shelf" | "pile" as kind:
-                pass
-            case _:
-                abort(400, "Choose a valid location type.")
-        name = request.form.get("name", "").strip()
-        parent_id = request.form.get("parent_id", "")
-        if not name or len(name) > 80:
-            abort(400, "Location names must be between 1 and 80 characters.")
-        with store.edit() as library:
-            entries = library["locations"]
-            parent = entries.get(parent_id) if parent_id else None
-            parent_kind = LOCATION_PARENTS[kind]
-            if parent_kind is None:
-                if parent_id:
-                    abort(400, "Rooms cannot have a parent location.")
-            elif parent is None or parent["kind"] != parent_kind:
-                abort(400, f"A {kind} must be inside a {parent_kind}.")
-            if any(item["parent_id"] == parent_id and fold(item["name"]) == fold(name) for item in entries.values()):
-                abort(409, "A location with that name already exists here.")
-            key = uuid4().hex
-            entries[key] = {"id": key, "kind": kind, "name": name, "parent_id": parent_id}
-        flash(f"{kind.title()} added.", "success")
-        return redirect(url_for("locations"))
-
-    @app.post("/locations/<location_id>/delete")
-    def delete_location(location_id: str) -> Response:
-        with store.edit() as library:
-            entries = library["locations"]
-            if location_id not in entries:
-                abort(404)
-            if any(item["parent_id"] == location_id for item in entries.values()) or any(
-                book["location_id"] == location_id for book in library["copies"].values()
-            ):
-                abort(409, "This location is not empty. Move its books or remove its child locations first.")
-            del entries[location_id]
-        flash("Location removed.", "success")
-        return redirect(url_for("locations"))
-
+    register_shelves(app, store)
     register_workflows(app, store)
     register_backups(app, store)
     return app

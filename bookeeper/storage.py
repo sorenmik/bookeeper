@@ -9,16 +9,29 @@ from typing import Any, Literal, NotRequired, TypedDict
 from filelock import FileLock
 
 
-LocationKind = Literal["room", "bookcase", "shelf", "pile"]
+UnitKind = Literal["cabinet", "shelf", "box", "pile"]
 
 
-class Location(TypedDict):
+class Storage(TypedDict):
     id: str
-    kind: LocationKind
     name: str
-    parent_id: str
-    x: NotRequired[int]
-    y: NotRequired[int]
+
+
+class Unit(TypedDict):
+    id: str
+    storage_id: str
+    kind: UnitKind
+    name: str
+    cols: int
+    rows: int
+    x: int
+    y: int
+    slot_names: dict[str, str]
+
+
+class LastMove(TypedDict):
+    description: str
+    previous: dict[str, str]
 
 
 class BookCopy(TypedDict):
@@ -59,13 +72,27 @@ class Library(TypedDict):
     session_key: str
     users: dict[str, str]
     copies: dict[str, BookCopy]
-    locations: dict[str, Location]
+    storages: dict[str, Storage]
+    units: dict[str, Unit]
+    slot_capacity: NotRequired[int]
+    last_move: NotRequired[LastMove]
     reading: NotRequired[dict[str, Reading]]
     loans: NotRequired[dict[str, Loan]]
     wishlists: NotRequired[dict[str, dict[str, BookCopy]]]
     notes: NotRequired[dict[str, dict[str, str]]]
     quote: NotRequired[dict[str, str]]
     quote_state: NotRequired[dict[str, Any]]
+
+
+def upgrade(library: Library) -> Library:
+    """Bring older files up to date. Floor-plan locations are discarded and their books become unplaced."""
+    if "locations" in library:
+        del library["locations"]  # type: ignore[typeddict-item]
+        for copy in library["copies"].values():
+            copy["location_id"] = ""
+    library.setdefault("storages", {})
+    library.setdefault("units", {})
+    return library
 
 
 class Store:
@@ -77,9 +104,9 @@ class Store:
     def _read(self) -> Library:
         try:
             with self.path.open(encoding="utf-8") as file:
-                return json.load(file)
+                return upgrade(json.load(file))
         except FileNotFoundError:
-            return {"session_key": "", "users": {}, "copies": {}, "locations": {}}
+            return {"session_key": "", "users": {}, "copies": {}, "storages": {}, "units": {}}
 
     def read(self) -> Library:
         with self.lock:

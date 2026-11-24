@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "move.html" import target_select %}
+{% block title %}{{ label }} · Bookeeper{% endblock %}
+{% block content %}
+<div class="heading">
+    <h1>{{ label }}</h1>
+    <a href="{{ url_for('locations', slot=unit.id ~ ':1:1') }}">Show on the map</a>
+</div>
+<p class="muted">{{ kinds[unit.kind] }} · {{ unit.cols }} × {{ unit.rows }} · {{ book_count }} {{ 'book' if book_count == 1 else 'books' }}</p>
+<form class="card fields" method="post" action="{{ url_for('edit_unit', key=unit.id) }}">
+    <h2>Edit</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>Name <input name="name" required maxlength="80" value="{{ unit.name }}"></label>
+    {% if unit.kind not in single_slot %}
+    <label>Columns <input name="cols" type="number" min="1" max="{{ max_side }}" value="{{ unit.cols }}"></label>
+    {% if unit.kind == 'cabinet' %}<label>Rows <input name="rows" type="number" min="1" max="{{ max_side }}" value="{{ unit.rows }}"></label>{% endif %}
+    <p class="muted">Making the unit smaller removes its outer slots and their custom names. Books in them go to the slot below.</p>
+    {{ target_select(slot_groups, 'Move displaced books to') }}
+    {% endif %}
+    <button type="submit" class="primary">Save</button>
+</form>
+<form class="card fields" method="post" action="{{ url_for('delete_unit', key=unit.id) }}"
+      data-confirm="Remove {{ unit.name }}{% if book_count %} and move its {{ book_count }} books{% endif %}?">
+    <h2>Remove</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    {% if book_count %}{{ target_select(slot_groups, 'Move its ' ~ book_count ~ ' books to') }}{% endif %}
+    <button type="submit">Remove unit</button>
+</form>
+{% if book_count %}
+<form class="card fields" method="post" action="{{ url_for('move_books') }}"
+      data-confirm="Move all {{ book_count }} books from {{ label }}?">
+    <h2>Move all books</h2>
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="hidden" name="source" value="{{ unit.id }}">
+    <input type="hidden" name="next" value="{{ url_for('edit_unit', key=unit.id) }}">
+    {{ target_select(slot_groups, 'Move every book to') }}
+    <button type="submit">Move all</button>
+</form>
+{% endif %}
+{% endblock %}

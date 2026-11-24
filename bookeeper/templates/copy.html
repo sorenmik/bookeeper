@@ -44,14 +44,19 @@
     {% endif %}
     <label>Summary <textarea name="summary" maxlength="5000" rows="4">{{ book.summary|default('') }}</textarea></label>
     <label>Tags (comma separated) <input name="tags" value="{{ book.tags|join(', ') }}"></label>
-    <label>Shelf or pile
+    <label>Location
         <select name="location_id">
-            <option value="">Unassigned</option>
-            {% for key, label in labels|dictsort(by='value') %}
-                <option value="{{ key }}" {% if book.location_id == key %}selected{% endif %}>{{ label }}</option>
+            <option value="">Unplaced</option>
+            {% for group, options in slot_groups %}
+                <optgroup label="{{ group }}">
+                    {% for key, name in options %}
+                        <option value="{{ key }}" {% if book.location_id == key %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </optgroup>
             {% endfor %}
         </select>
     </label>
+    {% if location_path %}<p class="book-location">Where is it? <a href="{{ url_for('locations', slot=book.location_id) }}" title="Show on the map">{{ location_path }}</a></p>{% endif %}
     <div class="actions">
         {% if duplicate %}
             <button class="primary" type="submit" name="allow_duplicate" value="yes">Add another copy anyway</button>

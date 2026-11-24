@@ -8,16 +8,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .storage import BookCopy, Location, LocationKind
-
-
-LOCATION_PARENTS: dict[LocationKind, LocationKind | None] = {
-    "room": None,
-    "bookcase": "room",
-    "shelf": "bookcase",
-    "pile": "room",
-}
-COPY_LOCATIONS = {"shelf", "pile"}
+from .places import in_location
+from .storage import BookCopy, Unit
 
 
 class LookupUnavailable(Exception):
@@ -238,22 +230,33 @@ def find_duplicate(candidate: BookCopy, copies: Iterable[BookCopy]) -> bool:
     )
 
 
-def location_path(location_id: str, locations: dict[str, Location]) -> list[Location]:
-    path = []
-    while location_id:
-        location = locations[location_id]
-        path.append(location)
-        location_id = location["parent_id"]
-    return path[::-1]
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"\w+", text))
 
 
-def location_label(location_id: str, locations: dict[str, Location]) -> str:
-    return " / ".join(item["name"] for item in location_path(location_id, locations))
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance where swapping two neighbouring letters counts as one typo."""
+    rows = [list(range(len(b) + 1))]
+    for i, left in enumerate(a, 1):
+        row = [i]
+        for j, right in enumerate(b, 1):
+            cost = min(rows[-1][j] + 1, row[j - 1] + 1, rows[-1][j - 1] + (left != right))
+            if i > 1 and j > 1 and left == b[j - 2] and a[i - 2] == right:
+                cost = min(cost, rows[-2][j - 2] + 1)
+            row.append(cost)
+        rows.append(row)
+    return rows[-1][-1]
 
 
-def search_copies(
-    copies: Iterable[BookCopy], locations: dict[str, Location], query: str, location_id: str
-) -> list[BookCopy]:
+def _fuzzy_word(word: str, tokens: set[str]) -> bool:
+    allowed = 0 if len(word) < 4 else 1 if len(word) < 8 else 2
+    return bool(allowed) and any(
+        abs(len(token) - len(word)) <= allowed and _edit_distance(word, token) <= allowed for token in tokens
+    )
+
+
+def search_copies(copies: Iterable[BookCopy], units: dict[str, Unit], query: str, location_id: str) -> list[BookCopy]:
+    """Substring matches come first; misspelt words still match when close to a word in the book."""
     try:
         isbn_query = normalize_isbn(query)
     except ValueError:
@@ -261,13 +264,15 @@ def search_copies(
     words = fold(query).split()
     results = []
     for copy in copies:
-        if location_id and location_id not in {
-            item["id"] for item in location_path(copy["location_id"], locations)
-        }:
+        if location_id and not in_location(copy["location_id"], location_id, units):
             continue
         text = fold(" ".join([
             copy["title"], copy["author"], copy["series"], copy["isbn"], copy.get("genre", ""), *copy["tags"]
         ]))
         if isbn_query == copy["isbn"] or all(word in text for word in words):
-            results.append(copy)
-    return sorted(results, key=lambda item: (fold(item["title"]), fold(item["author"])))
+            results.append((False, copy))
+        elif all(word in text or _fuzzy_word(word, _tokens(text)) for word in words):
+            results.append((True, copy))
+    return [copy for _fuzzy, copy in sorted(
+        results, key=lambda item: (item[0], fold(item[1]["title"]), fold(item[1]["author"]))
+    )]

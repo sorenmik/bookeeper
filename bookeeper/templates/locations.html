@@ -4,62 +4,99 @@
 {% block content %}
 {% set adding = request.args.get('add') == '1' %}
 <div class="heading">
-    <h1>{{ 'Add a location' if adding else 'Locations' }}</h1>
+    <h1>{{ 'Add storage or unit' if adding else 'Locations' }}</h1>
     <div class="actions">
         {% if adding %}
-            <a href="{{ url_for('locations') }}">Back to locations</a>
+            <a href="{{ url_for('locations') }}">Back to the map</a>
         {% else %}
-            <a class="button" href="{{ floor_url }}">{{ icon('floor') }} Floor plans</a>
-            <a class="button primary" href="{{ url_for('locations', add=1) }}">{{ icon('add') }} Add location</a>
+            <a class="button primary" href="{{ url_for('locations', add=1) }}">{{ icon('add') }} Add storage or unit</a>
         {% endif %}
     </div>
 </div>
-{% macro add_form(kind, choices=[]) %}
-    <form class="card fields" method="post" action="{{ url_for('add_location') }}">
-        <h2>Add a {{ kind }}</h2>
-        <input type="hidden" name="csrf" value="{{ session.csrf }}">
-        <input type="hidden" name="kind" value="{{ kind }}">
-        <label>Name <input name="name" required maxlength="80"></label>
-        {% if choices %}
-            <label>{{ 'Bookcase' if kind == 'shelf' else 'Room' }}
-                <select name="parent_id" required>
-                    {% for item in choices %}
-                        <option value="{{ item.id }}">{{ labels[item.id] }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-        {% endif %}
-        <button type="submit">Add {{ kind }}</button>
-    </form>
-{% endmacro %}
 {% if adding %}
-    {% set rooms = locations.values()|selectattr('kind', 'equalto', 'room')|list %}
-    {% set bookcases = locations.values()|selectattr('kind', 'equalto', 'bookcase')|list %}
-    <p>Create a room first. Rooms can contain bookcases and piles; bookcases can contain shelves.</p>
+    <p>A storage is a place such as the kitchen. Units are what you draw inside it, seen from the side: cabinets with a grid of shelves, single shelves, boxes and piles.</p>
     <div class="cards">
-        {{ add_form('room') }}
-        {% if rooms %}
-            {{ add_form('bookcase', rooms) }}
-            {{ add_form('pile', rooms) }}
-        {% endif %}
-        {% if bookcases %}{{ add_form('shelf', bookcases) }}{% endif %}
-    </div>
-{% elif labels %}
-<ul class="card compact-list locations-list" aria-label="Current locations">
-    {% for key, label in labels|dictsort(by='value') %}
-    <li>
-        <div>
-            <a href="{{ url_for('catalog', location=key) }}">{{ label }}</a>
-            <small>{{ locations[key].kind|capitalize }}</small>
-        </div>
-        <form action="{{ url_for('delete_location', location_id=key) }}" method="post">
+        <form class="card fields" method="post" action="{{ url_for('add_storage') }}">
+            <h2>Add a storage</h2>
             <input type="hidden" name="csrf" value="{{ session.csrf }}">
-            <button type="submit" aria-label="Remove {{ label }}">Remove</button>
+            <label>Name <input name="name" required maxlength="80" placeholder="Kitchen"></label>
+            <button type="submit">Add storage</button>
         </form>
-    </li>
-    {% endfor %}
-</ul>
+        {% if storages %}
+        <form class="card fields" method="post" action="{{ url_for('add_unit') }}">
+            <h2>Add a unit</h2>
+            <input type="hidden" name="csrf" value="{{ session.csrf }}">
+            <label>Storage
+                <select name="storage_id" required>{% for item in storages %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select>
+            </label>
+            <label>Type
+                <select name="kind" required>{% for key, label in unit_kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+            </label>
+            <label>Name <input name="name" required maxlength="80" placeholder="Cabinet A"></label>
+            <label>Columns <input name="cols" type="number" min="1" max="{{ max_side }}" value="1"></label>
+            <label>Rows <input name="rows" type="number" min="1" max="{{ max_side }}" value="1"></label>
+            <p class="muted">Shelves always have one row. Boxes and piles are a single slot, so the size is ignored.</p>
+            <button type="submit">Add unit</button>
+        </form>
+        {% endif %}
+    </div>
 {% else %}
-    <p class="card">No locations yet. Add a room to get started.</p>
+    <p class="muted">Drag a unit by its name to move it. Select a slot to see its books. Numbers show how many books each slot holds.</p>
+    <div class="actions">
+        <a href="{{ url_for('catalog', location=unplaced) }}">{{ unplaced_count }} unplaced {{ 'book' if unplaced_count == 1 else 'books' }}</a>
+        {% if last_move %}
+        <form method="post" action="{{ url_for('undo_move') }}">
+            <input type="hidden" name="csrf" value="{{ session.csrf }}">
+            <button type="submit">Undo: {{ last_move.description }}</button>
+        </form>
+        {% endif %}
+    </div>
+    <p class="floor-status" role="status"></p>
+    {% for zone in zones %}
+    <section class="card zone" id="storage-{{ zone.id }}">
+        <div class="heading">
+            <h2>{{ zone.name }}</h2>
+            <a href="{{ url_for('edit_storage', key=zone.id) }}">Edit storage</a>
+        </div>
+        {% if zone.units %}
+        <div class="zone-canvas floor" style="--h:{{ zone.height }}" data-csrf="{{ session.csrf }}" aria-label="Map of {{ zone.name }}">
+            {% for unit in zone.units %}
+            <div class="unit map-token {{ unit.kind }}" style="--x:{{ unit.x }};--y:{{ unit.y }};--w:{{ [unit.cols, 2]|max }}"
+                 data-x="{{ unit.x }}" data-y="{{ unit.y }}" data-url="{{ url_for('move_unit', key=unit.id) }}">
+                <div class="unit-bar">
+                    <button class="unit-handle" type="button" title="{{ unit.name }} · drag to move, or use the arrow keys">{{ unit.name }}</button>
+                    <a href="{{ url_for('edit_unit', key=unit.id) }}" aria-label="Edit {{ unit.name }}" title="Edit {{ unit.name }}">Edit</a>
+                </div>
+                <div class="slot-grid" style="--cols:{{ unit.cols }}">
+                    {% for line in unit.grid %}{% for cell in line %}
+                        <a class="slot{% if cell.count == 0 %} is-empty{% elif cell.count >= capacity %} is-full{% endif %}{% if cell.id == highlight %} is-target{% endif %}"
+                           id="slot-{{ cell.id|replace(':', '-') }}" href="{{ url_for('show_slot', slot_id=cell.id) }}"
+                           title="{{ unit.name }}{% if cell.name %} · {{ cell.name }}{% endif %}: {{ cell.count }} {{ 'book' if cell.count == 1 else 'books' }}"
+                           aria-label="{{ zone.name }}, {{ unit.name }}{% if cell.name %}, {{ cell.name }}{% endif %}: {{ cell.count }} {{ 'book' if cell.count == 1 else 'books' }}">
+                            <span class="slot-name">{{ cell.name }}</span>
+                            <span class="slot-count">{{ cell.count }}</span>
+                        </a>
+                    {% endfor %}{% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <p>No units yet. <a href="{{ url_for('locations', add=1) }}">Add a cabinet, shelf, box or pile.</a></p>
+        {% endif %}
+    </section>
+    {% else %}
+        <p class="card">No storages yet. <a href="{{ url_for('locations', add=1) }}">Add one</a>, such as the kitchen or the study, to get started.</p>
+    {% endfor %}
+    {% if zones %}
+    <details class="card">
+        <summary>Fullness</summary>
+        <form class="fields coordinates" method="post" action="{{ url_for('set_capacity') }}">
+            <input type="hidden" name="csrf" value="{{ session.csrf }}">
+            <label>Slots look full at this many books <input name="capacity" type="number" min="1" max="9999" value="{{ capacity }}"></label>
+            <button type="submit">Save</button>
+        </form>
+    </details>
+    {% endif %}
 {% endif %}
 {% endblock %}
