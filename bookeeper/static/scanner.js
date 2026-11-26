@@ -3,7 +3,6 @@
 const controls = document.querySelector("#scanner-controls");
 const begin = document.querySelector("#scan-start");
 const end = document.querySelector("#scan-stop");
-const readText = document.querySelector("#scan-text");
 const previewOptions = document.querySelector("#scan-preview-options");
 const mirror = document.querySelector("#scan-mirror");
 const message = document.querySelector("#scan-status");
@@ -11,7 +10,6 @@ const view = document.querySelector("#scan-view");
 const frame = view.parentElement;
 let scanner;
 let load;
-let loadOcr;
 let stopping = false;
 let scanHint;
 
@@ -23,24 +21,6 @@ function showStatus(text) {
 function isbn13(value) {
     if (!/^97[89]\d{10}$/.test(value)) return false;
     return [...value].reduce((sum, digit, index) => sum + Number(digit) * (index % 2 ? 3 : 1), 0) % 10 === 0;
-}
-
-function printedIsbn(text) {
-    const found = new Set();
-    for (const match of text.matchAll(/\bISBN(?:\s*-?\s*(?:10|13)(?=[\s:]))?\s*:?\s*((?:\d[.\s-]*){9,12}[\dX])\b/gi)) {
-        const value = match[1].replace(/[.\s-]/g, "").toUpperCase();
-        if (isbn13(value)) {
-            found.add(value);
-        } else if (/^\d{9}[\dX]$/.test(value)) {
-            const checksum = [...value].reduce((sum, digit, i) => sum + (digit === "X" ? 10 : Number(digit)) * (10 - i), 0);
-            if (checksum % 11 === 0) {
-                const body = "978" + value.slice(0, 9);
-                const total = [...body].reduce((sum, digit, i) => sum + Number(digit) * (i % 2 ? 3 : 1), 0);
-                found.add(`${body}${(10 - total % 10) % 10}`);
-            }
-        }
-    }
-    return found.size === 1 ? [...found][0] : null;
 }
 
 function loadScript(src) {
@@ -56,10 +36,107 @@ function loadScript(src) {
     });
 }
 
-function acceptIsbn(value, source) {
+async function loadBarcodeEngine() {
+    if (!load) {
+        load = (async () => {
+            await loadScript(controls.dataset.reader);
+            const wasm = new URL(controls.dataset.wasm, document.baseURI).href;
+            await ZXingWASM.prepareZXingModule({
+                overrides: {
+                    locateFile: (path, prefix) => path.endsWith(".wasm") ? wasm : prefix + path,
+                },
+                fireImmediately: true,
+            });
+        })().catch((error) => {
+            load = null;
+            throw error;
+        });
+    }
+    return load;
+}
+
+function acceptIsbn(value) {
     document.querySelector("#isbn").value = value;
-    showStatus(`${source}. Choose Look up ISBN to fill in the book details.`);
+    showStatus("ISBN scanned. Choose Look up ISBN to fill in the book details.");
     stopCamera();
+}
+
+class BarcodeCamera {
+    constructor(element, onIsbn) {
+        this.element = element;
+        this.onIsbn = onIsbn;
+        this.stream = null;
+        this.video = null;
+        this.canvas = document.createElement("canvas");
+        this.context = this.canvas.getContext("2d", {willReadFrequently: true});
+        this.running = false;
+        this.decoding = false;
+        this.timer = null;
+    }
+
+    async start() {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+                facingMode: {ideal: "environment"},
+                width: {ideal: 1280},
+                height: {ideal: 720},
+            },
+        });
+        this.video = document.createElement("video");
+        this.video.autoplay = true;
+        this.video.muted = true;
+        this.video.playsInline = true;
+        this.video.srcObject = this.stream;
+        this.element.replaceChildren(this.video);
+        await this.video.play();
+        this.running = true;
+        this.scanFrame();
+    }
+
+    async scanFrame() {
+        if (!this.running) return;
+        if (!this.decoding && this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            this.decoding = true;
+            try {
+                const scale = Math.min(1, 1280 / this.video.videoWidth);
+                this.canvas.width = Math.round(this.video.videoWidth * scale);
+                this.canvas.height = Math.round(this.video.videoHeight * scale);
+                this.context.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                const pixels = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+                const results = await ZXingWASM.readBarcodes(pixels, {
+                    formats: ["EAN13"],
+                    tryHarder: true,
+                    tryRotate: true,
+                    tryInvert: false,
+                    tryDownscale: false,
+                    maxNumberOfSymbols: 5,
+                });
+                const match = results.find((result) => isbn13(result.text));
+                const value = match ? match.text : null;
+                if (value && this.running) this.onIsbn(value);
+            } catch (error) {
+                console.warn("Bookeeper could not decode a camera frame.", error);
+            } finally {
+                this.decoding = false;
+            }
+        }
+        if (this.running) this.timer = setTimeout(() => this.scanFrame(), 100);
+    }
+
+    async stop() {
+        this.running = false;
+        clearTimeout(this.timer);
+        if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
+        if (this.video) {
+            this.video.pause();
+            this.video.srcObject = null;
+        }
+    }
+
+    clear() {
+        this.element.replaceChildren();
+    }
 }
 
 async function stopCamera(status) {
@@ -70,9 +147,9 @@ async function stopCamera(status) {
         await scanner.stop();
         scanner.clear();
         scanner = null;
-        end.hidden = view.hidden = readText.hidden = previewOptions.hidden = true;
-        readText.disabled = false;
-        frame.removeAttribute("data-text-guide");
+        end.hidden = view.hidden = previewOptions.hidden = true;
+        mirror.checked = false;
+        frame.classList.remove("is-mirrored");
         begin.disabled = false;
         if (status) showStatus(status);
     } catch (error) {
@@ -86,71 +163,16 @@ async function stopCamera(status) {
 mirror.addEventListener("change", () => frame.classList.toggle("is-mirrored", mirror.checked));
 end.addEventListener("click", () => stopCamera("Camera stopped."));
 window.addEventListener("pagehide", () => stopCamera());
-readText.addEventListener("click", async () => {
-    if (!scanner || stopping) return;
-    if (!frame.hasAttribute("data-text-guide")) {
-        frame.setAttribute("data-text-guide", "");
-        showStatus("Fit the printed ISBN label and number in the orange guide, then tap Read printed ISBN again.");
-        return;
-    }
-    const activeScanner = scanner;
-    const stillScanning = () => scanner === activeScanner && !stopping;
-    readText.disabled = true;
-    showStatus("Reading printed ISBN text. Keep the label and number in the guide.");
-    let worker;
-    try {
-        const script = new URL(controls.dataset.ocr, document.baseURI);
-        loadOcr ??= loadScript(script.href).catch((error) => { loadOcr = null; throw error; });
-        await loadOcr;
-        if (!stillScanning()) return;
-        worker = await Tesseract.createWorker("eng", Tesseract.OEM.LSTM_ONLY, {
-            workerPath: new URL("worker.min.js", script).href,
-            corePath: new URL("tesseract-core-lstm.wasm.js", script).href,
-            langPath: new URL(".", script).href,
-            workerBlobURL: false,
-        });
-        if (!stillScanning()) return;
-        await worker.setParameters({tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE});
-        const crop = document.createElement("canvas");
-        for (let attempt = 0; attempt < 2 && stillScanning(); attempt++) {
-            if (attempt) await new Promise((resolve) => setTimeout(resolve, 150));
-            if (!stillScanning()) return;
-            const video = view.querySelector("video");
-            if (!video?.videoWidth || video.readyState < 2) continue;
-            crop.width = Math.round(video.videoWidth * .9);
-            crop.height = Math.round(video.videoHeight * .11);
-            crop.getContext("2d").drawImage(
-                video, Math.round(video.videoWidth * .05), Math.round(video.videoHeight * .27),
-                crop.width, crop.height, 0, 0, crop.width, crop.height,
-            );
-            const {data} = await worker.recognize(crop);
-            if (!stillScanning()) return;
-            const value = printedIsbn(data.text);
-            if (value) {
-                acceptIsbn(value, "Printed ISBN read");
-                return;
-            }
-        }
-        if (stillScanning()) showStatus("No valid ISBN found in the guide. Move the printed line into the box and try again, or type the ISBN.");
-    } catch (error) {
-        console.warn("Bookeeper could not read printed ISBN text.", error);
-        if (stillScanning()) showStatus("Text recognition could not run. Use the barcode or enter the ISBN manually.");
-    } finally {
-        if (worker) await worker.terminate();
-        if (stillScanning()) readText.disabled = false;
-    }
-});
 
 begin.addEventListener("click", async () => {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showStatus("The phone camera requires a trusted HTTPS connection. You can still type or paste the ISBN.");
         return;
     }
     begin.disabled = true;
     showStatus("Loading the barcode scanner…");
     try {
-        load ??= loadScript(controls.dataset.reader).catch((error) => { load = null; throw error; });
-        await load;
+        await loadBarcodeEngine();
     } catch (error) {
         console.warn("Bookeeper could not load the barcode scanner.", error);
         showStatus("The scanner could not load. You can still type or paste the ISBN.");
@@ -160,24 +182,22 @@ begin.addEventListener("click", async () => {
     view.hidden = false;
     showStatus("Opening the camera. Allow camera access if prompted.");
     try {
-        scanner = new Html5Qrcode(view.id, {formatsToSupport: [Html5QrcodeSupportedFormats.EAN_13]});
-        await scanner.start({facingMode: "environment"}, {
-            fps: 8,
-            videoConstraints: {facingMode: {ideal: "environment"}, width: {ideal: 1280}, height: {ideal: 720}},
-        }, (value) => {
-            if (stopping || !isbn13(value)) return;
-            acceptIsbn(value, "ISBN scanned");
-        });
+        scanner = new BarcodeCamera(view, acceptIsbn);
+        await scanner.start();
         if (scanner && !stopping) {
-            end.hidden = readText.hidden = previewOptions.hidden = false;
-            showStatus("Camera on. Scanning for a 13-digit ISBN barcode…");
+            end.hidden = previewOptions.hidden = false;
+            showStatus("Camera on. Scanning for an ISBN barcode…");
             scanHint = setTimeout(() => {
-                showStatus("Still scanning. No ISBN barcode detected yet. Try Read printed ISBN to scan the printed number instead.");
+                showStatus("Still scanning. Move the barcode closer and hold it steady, or enter the ISBN manually.");
             }, 5000);
         }
     } catch (error) {
         console.warn("Bookeeper could not open the camera.", error);
-        scanner = null;
+        if (scanner) {
+            await scanner.stop();
+            scanner.clear();
+            scanner = null;
+        }
         view.hidden = true;
         begin.disabled = false;
         showStatus("Could not open the camera. Check browser permissions or type the ISBN manually.");

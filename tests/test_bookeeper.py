@@ -296,6 +296,30 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(set(Store(Path(directory)).read()["users"]), {"owner"})
 
 
+class ScannerAssetTests(unittest.TestCase):
+    def test_zxing_wasm_assets_are_served_to_signed_in_users(self):
+        with TemporaryDirectory() as directory:
+            app = create_app({"TESTING": True, "DATA_DIR": directory})
+            result = app.test_cli_runner().invoke(args=["add-user", "owner"], input=f"{PASSWORD}\n{PASSWORD}\n")
+            self.assertEqual(result.exit_code, 0, result.output)
+            client = app.test_client()
+            client.get("/login")
+            with client.session_transaction() as session:
+                csrf = session["csrf"]
+            login = client.post("/login", data={"csrf": csrf, "username": "owner", "password": PASSWORD})
+            self.assertEqual(login.location, "/")
+            reader = client.get("/scanner-wasm.js")
+            wasm = client.get("/scanner-wasm.wasm")
+            reader_data, wasm_mimetype = reader.data, wasm.mimetype
+            reader.close()
+            wasm.close()
+
+        self.assertEqual(reader.status_code, 200)
+        self.assertIn(b"ZXingWASM", reader_data)
+        self.assertEqual(wasm.status_code, 200)
+        self.assertEqual(wasm_mimetype, "application/wasm")
+
+
 class AuthTests(unittest.TestCase):
     def setUp(self):
         directory = TemporaryDirectory()

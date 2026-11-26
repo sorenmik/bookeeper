@@ -50,7 +50,7 @@ CONTENT_SECURITY_POLICY = "; ".join((
     "form-action 'self'",
     "frame-ancestors 'none'",
 ))
-SHARED_ASSETS = {"static", "scanner", "scanner_ocr"}
+SHARED_ASSETS = {"static", "scanner_wasm_js", "scanner_wasm_binary"}
 
 
 def check_password(password: str) -> None:
@@ -285,25 +285,19 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         session.clear()
         return redirect(url_for("login"))
 
-    @app.get("/scanner.js")
-    def scanner() -> Response:
+    @app.get("/scanner-wasm.js")
+    def scanner_wasm_js() -> Response:
         return send_from_directory(
-            Path(app.root_path).parent / "node_modules" / "html5-qrcode",
-            "html5-qrcode.min.js",
+            Path(app.root_path).parent / "node_modules" / "zxing-wasm" / "dist" / "iife" / "reader",
+            "index.js",
         )
 
-    @app.get("/scanner-ocr/<filename>")
-    def scanner_ocr(filename: str) -> Response:
-        assets = {
-            "tesseract.min.js": Path("tesseract.js") / "dist",
-            "worker.min.js": Path("tesseract.js") / "dist",
-            "tesseract-core-lstm.wasm.js": Path("tesseract.js-core"),
-            "eng.traineddata.gz": Path("@tesseract.js-data") / "eng" / "4.0.0_best_int",
-        }
-        directory = assets.get(filename)
-        if directory is None:
-            abort(404)
-        return send_from_directory(Path(app.root_path).parent / "node_modules" / directory, filename)
+    @app.get("/scanner-wasm.wasm")
+    def scanner_wasm_binary() -> Response:
+        return send_from_directory(
+            Path(app.root_path).parent / "node_modules" / "zxing-wasm" / "dist" / "reader",
+            "zxing_reader.wasm",
+        )
 
     @app.get("/")
     def home() -> str:

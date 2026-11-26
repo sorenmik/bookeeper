@@ -189,16 +189,9 @@ summary { cursor: pointer; }
 .coordinates label { max-width: 5rem; }
 .floor-status, #scan-status { min-height: 1.5rem; }
 #scan-preview-options { margin-block-start: .5rem; }
-.scan-frame { position: relative; max-width: 30rem; }
+.scan-frame { max-width: 30rem; }
+#scan-view video { display: block; width: 100%; height: auto; }
 .scan-frame.is-mirrored video { transform: scaleX(-1); }
-.scan-guide { display: none; position: absolute; pointer-events: none; border: 2px dashed #ff9050; }
-.scan-frame[data-text-guide] .scan-guide {
-    display: block;
-    inset: 27% 5% auto;
-    height: 11%;
-    box-shadow: 0 0 0 1px #171717;
-}
-#scan-view[hidden] + .scan-guide { display: none; }
 .metric { font-size: 2rem; font-weight: 700; margin-inline-start: 0; }
 .sort-list li { padding-block: .35rem; }
 .sort-list span { display: block; }
