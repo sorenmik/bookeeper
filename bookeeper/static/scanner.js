@@ -70,12 +70,13 @@ class BarcodeCamera {
         this.canvas = document.createElement("canvas");
         this.context = this.canvas.getContext("2d", {willReadFrequently: true});
         this.running = false;
-        this.decoding = false;
+        this.stopped = false;
         this.timer = null;
+        this.frameRequest = null;
     }
 
     async start() {
-        this.stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
             video: {
                 facingMode: {ideal: "environment"},
@@ -83,6 +84,13 @@ class BarcodeCamera {
                 height: {ideal: 720},
             },
         });
+        // stop() may have run while the permission prompt was open.
+        if (this.stopped) {
+            stream.getTracks().forEach((track) => track.stop());
+            throw new Error("Camera stopped before it opened.");
+        }
+        this.stream = stream;
+        this.enableAutofocus();
         this.video = document.createElement("video");
         this.video.autoplay = true;
         this.video.muted = true;
@@ -90,18 +98,39 @@ class BarcodeCamera {
         this.video.srcObject = this.stream;
         this.element.replaceChildren(this.video);
         await this.video.play();
+        if (this.stopped) return;
         this.running = true;
-        this.scanFrame();
+        this.scheduleScan();
+    }
+
+    enableAutofocus() {
+        const [track] = this.stream.getVideoTracks();
+        const modes = track && track.getCapabilities ? track.getCapabilities().focusMode || [] : [];
+        if (modes.includes("continuous")) {
+            track.applyConstraints({advanced: [{focusMode: "continuous"}]}).catch(() => {});
+        }
+    }
+
+    scheduleScan() {
+        if (!this.running) return;
+        if (this.video.requestVideoFrameCallback) {
+            this.frameRequest = this.video.requestVideoFrameCallback(() => this.scanFrame());
+        } else {
+            this.timer = setTimeout(() => this.scanFrame(), 50);
+        }
     }
 
     async scanFrame() {
         if (!this.running) return;
-        if (!this.decoding && this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            this.decoding = true;
+        if (this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && this.video.videoWidth) {
             try {
                 const scale = Math.min(1, 1280 / this.video.videoWidth);
-                this.canvas.width = Math.round(this.video.videoWidth * scale);
-                this.canvas.height = Math.round(this.video.videoHeight * scale);
+                const width = Math.round(this.video.videoWidth * scale);
+                const height = Math.round(this.video.videoHeight * scale);
+                if (this.canvas.width !== width || this.canvas.height !== height) {
+                    this.canvas.width = width;
+                    this.canvas.height = height;
+                }
                 this.context.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
                 const pixels = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
                 const results = await ZXingWASM.readBarcodes(pixels, {
@@ -114,19 +143,22 @@ class BarcodeCamera {
                 });
                 const match = results.find((result) => isbn13(result.text));
                 const value = match ? match.text : null;
-                if (value && this.running) this.onIsbn(value);
+                if (value && this.running) {
+                    this.onIsbn(value);
+                    return;
+                }
             } catch (error) {
                 console.warn("Bookeeper could not decode a camera frame.", error);
-            } finally {
-                this.decoding = false;
             }
         }
-        if (this.running) this.timer = setTimeout(() => this.scanFrame(), 100);
+        this.scheduleScan();
     }
 
     async stop() {
         this.running = false;
+        this.stopped = true;
         clearTimeout(this.timer);
+        if (this.frameRequest !== null && this.video) this.video.cancelVideoFrameCallback(this.frameRequest);
         if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
         if (this.video) {
             this.video.pause();
