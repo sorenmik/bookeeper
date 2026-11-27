@@ -195,6 +195,7 @@ summary { cursor: pointer; }
 .scan-frame.is-mirrored video { transform: scaleX(-1); }
 .metric { font-size: 2rem; font-weight: 700; margin-inline-start: 0; }
 .sort-list li { padding-block: .35rem; }
+.sort-form { align-items: end; }
 .sort-list span { display: block; }
 .compact-list { list-style: none; padding: 0; }
 .compact-list > li { padding: .6rem .85rem; }

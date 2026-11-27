@@ -580,6 +580,12 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(b'href="https://192.168.1.20:5000/"', connect)
         self.assertNotIn(b"http://", connect.replace(b"http://www.w3.org", b""))
         self.assertIn(b"River Atlas", self.owner.get("/sorting?by=genre&by=").data)
+        for title, author in (("Emma", "Jane Austen"), ("Bleak House", "Charles Dickens"),
+                              ("Kvinden i buret", "Jussi Adler-Olsen, Karin Bergman"), ("Ulysses", "Joyce, James")):
+            self.assertEqual(self.submit(self.owner, "/copies/new", title=title, author=author).status_code, 302)
+        page = self.owner.get("/sorting?by=author").data.decode()
+        positions = [page.index(title) for title in ("Kvinden i buret", "Emma", "Bleak House", "Ulysses", "River Atlas")]
+        self.assertEqual(positions, sorted(positions))
 
 
 class QuoteTests(unittest.TestCase):
@@ -764,7 +770,7 @@ class DataTests(unittest.TestCase):
         }]}}
         with patch("bookeeper.catalog.lookup_open_library", return_value=None), \
                 patch("bookeeper.catalog.lookup_royal_library", return_value=None), \
-                patch("bookeeper.catalog.lookup_google_books") as google, \
+                patch("bookeeper.catalog.lookup_google_books", return_value=None), \
                 patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(json.dumps(record).encode())) as fetch:
             result = lookup_all_isbn("9788703032320")
         self.assertEqual(result, BookMetadata(
@@ -773,7 +779,27 @@ class DataTests(unittest.TestCase):
         ))
         url = urlsplit(fetch.call_args.args[0].full_url)
         self.assertEqual((url.netloc, parse_qs(url.query)["query"]), ("libris.kb.se", ["isbn:9788703032320"]))
-        google.assert_not_called()
+
+        polish = "Wiedźmin to mistrz miecza i magii. Geralt z Rivii nie jest człowiekiem, ale jego misja to walka z potworami."
+        english = "Geralt of Rivia is a witcher, a man whose magic powers have made him a ruthless killer of monsters."
+        with patch("bookeeper.catalog.lookup_open_library", return_value=BookMetadata("The Last Wish", summary=polish)), \
+                patch("bookeeper.catalog.lookup_libris", return_value=BookMetadata("Last wish", "Andrzej Sapkowski", language="English")), \
+                patch("bookeeper.catalog.lookup_google_books", return_value=BookMetadata("x", summary=english, pages=360)), \
+                patch("bookeeper.catalog.lookup_royal_library") as royal:
+            result = lookup_all_isbn("9780316452465")
+        self.assertEqual(result, BookMetadata("The Last Wish", "Andrzej Sapkowski", english, language="English", pages=360))
+        royal.assert_not_called()
+        with patch("bookeeper.catalog.lookup_open_library", return_value=BookMetadata("The Last Wish", summary=polish)), \
+                patch("bookeeper.catalog.lookup_libris", return_value=None), \
+                patch("bookeeper.catalog.lookup_google_books", return_value=None), \
+                patch("bookeeper.catalog.lookup_royal_library", return_value=None):
+            self.assertEqual(lookup_all_isbn("9780316452465").summary, "")
+        danish = "Geralt er en heksefar, og han rejser rundt i landet for at bekæmpe monstre som ingen andre tør møde."
+        with patch("bookeeper.catalog.lookup_open_library", return_value=BookMetadata("The Last Wish", summary=polish, language="English")), \
+                patch("bookeeper.catalog.lookup_libris", return_value=None), \
+                patch("bookeeper.catalog.lookup_google_books", return_value=None), \
+                patch("bookeeper.catalog.lookup_royal_library", return_value=BookMetadata("x", summary=danish)):
+            self.assertEqual(lookup_all_isbn("9780316452465").summary, danish)
 
         volume = {"items": [{"volumeInfo": {"title": "Hygge", "subtitle": "Lykke", "authors": ["Meik"], "language": "da", "pageCount": 200}}]}
         with patch("bookeeper.catalog.lookup_open_library", side_effect=LookupUnavailable), \
@@ -806,16 +832,18 @@ class DataTests(unittest.TestCase):
                 <subfield code="c">2008.</subfield></datafield>
               <datafield tag="300"><subfield code="a">378 sider.</subfield></datafield>
             </record></recordData></record></records></searchRetrieveResponse>"""
-        with patch("bookeeper.catalog.lookup_open_library") as open_library, \
+        summary = "Carl Mørck får en ny afdeling, og han skal løse gamle sager som ingen har kunnet opklare."
+        with patch("bookeeper.catalog.lookup_open_library", return_value=BookMetadata("Other title", summary=summary)), \
+                patch("bookeeper.catalog.lookup_libris") as libris, \
                 patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(marc)) as fetch:
             result = lookup_all_isbn("9788703032320")
         self.assertEqual(result, BookMetadata(
-            "Kvinden i buret: krimi", "Jussi Adler-Olsen", publisher="Gyldendals Bogklubber",
+            "Kvinden i buret: krimi", "Jussi Adler-Olsen", summary, publisher="Gyldendals Bogklubber",
             publication_date="2008", language="Danish", pages=378,
         ))
         url = urlsplit(fetch.call_args.args[0].full_url)
         self.assertEqual((url.netloc, parse_qs(url.query)["query"]), ("kbdk-kgl.alma.exlibrisgroup.com", ["alma.isbn=9788703032320"]))
-        open_library.assert_not_called()
+        libris.assert_not_called()
 
     def test_open_library_reads_a_work_summary(self):
         key = "ISBN:9780141439518"

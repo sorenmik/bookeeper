@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Sorting suggestions</h1>
 <p>See a suggested order and the current location of each copy. This does not change the catalog.</p>
-<form class="card actions" method="get">
+<form class="card actions sort-form" method="get">
     <label>Sort by <select name="by">
         {% for field in allowed %}<option value="{{ field }}"{% if field == order[0] %} selected{% endif %}>{{ field|capitalize }}</option>{% endfor %}
     </select></label>

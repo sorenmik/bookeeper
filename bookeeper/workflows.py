@@ -7,7 +7,7 @@ import qrcode
 import qrcode.image.svg
 from flask import Blueprint, Flask, Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from .catalog import find_duplicate, fold, normalize_isbn
+from .catalog import author_sort_key, find_duplicate, fold, normalize_isbn
 from .dashboard import activity
 from .places import slot_labels
 from .storage import BookCopy, Library, Loan, Reading, Store
@@ -199,9 +199,13 @@ def register_workflows(app: Flask, store: Store) -> None:
         allowed = ("genre", "format", "author", "series", "title")
         if any(key not in allowed for key in order) or len(order) > len(allowed):
             abort(400, "Choose valid sorting fields.")
+        def sort_value(copy: BookCopy, field: str) -> str:
+            value = copy.get(field, "")
+            return author_sort_key(value) if field == "author" else fold(value)
+
         copies = sorted(
             library["copies"].values(),
-            key=lambda copy: tuple((not value, value) for value in (fold(copy.get(field, "")) for field in order)),
+            key=lambda copy: tuple((not value, value) for value in (sort_value(copy, field) for field in order)),
         )
         return render_template(
             "sorting.html", order=order, allowed=allowed, copies=copies, labels=slot_labels(library),

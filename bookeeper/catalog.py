@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from functools import lru_cache
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -50,13 +50,11 @@ def _open_library(path: str) -> dict:
 
 
 def _summary(record: dict) -> str:
-    for field in ("description", "notes"):
-        value = record.get(field)
-        if isinstance(value, dict):
-            value = value.get("value")
-        if isinstance(value, str) and value.strip():
-            return value.strip()[:5000]
-    return ""
+    # Open Library "notes" are cataloguing remarks ("Translated from the Polish."), not descriptions.
+    value = record.get("description")
+    if isinstance(value, dict):
+        value = value.get("value")
+    return value.strip()[:5000] if isinstance(value, str) else ""
 
 
 def _text(value: object) -> str:
@@ -132,6 +130,7 @@ _LANGUAGES = {
     "da": "Danish", "dan": "Danish", "en": "English", "eng": "English", "sv": "Swedish", "swe": "Swedish",
     "no": "Norwegian", "nb": "Norwegian", "nor": "Norwegian", "de": "German", "ger": "German", "deu": "German",
     "fr": "French", "fre": "French", "fra": "French", "es": "Spanish", "spa": "Spanish",
+    "pl": "Polish", "pol": "Polish",
 }
 
 
@@ -241,25 +240,75 @@ def lookup_royal_library(isbn: str) -> BookMetadata | None:
 
 
 def lookup_isbn(isbn: str) -> BookMetadata | None:
-    """Ask each source in turn and return the first match.
+    """Combine sources in order: the first match wins, and later sources only fill its blanks.
 
+    Later sources are asked only while no summary in an acceptable language has been found.
     Raises LookupUnavailable only when every source failed; otherwise a miss means not found.
     """
     failures = 0
+    result = None
+    summaries = []
     # Ordered by how likely each source is to know the ISBN; 978-87 is the Danish ISBN range.
     providers = (lookup_open_library, lookup_libris, lookup_google_books, lookup_royal_library)
     if isbn.startswith("97887"):
         providers = (lookup_royal_library, lookup_open_library, lookup_libris, lookup_google_books)
     for provider in providers:
         try:
-            if metadata := provider(isbn):
-                return metadata
+            metadata = provider(isbn)
         except LookupUnavailable:
             logging.getLogger(__name__).warning("%s was unavailable for ISBN %s.", getattr(provider, "__name__", provider), isbn)
             failures += 1
-    if failures == len(providers):
-        raise LookupUnavailable("No book database could be reached.")
-    return None
+            continue
+        if metadata:
+            summaries.append(metadata.summary)
+            result = metadata if result is None else replace(result, **{
+                field.name: getattr(metadata, field.name)
+                for field in fields(BookMetadata) if not getattr(result, field.name)
+            })
+            if _pick_summary(summaries, result.language, allow_fallback=False):
+                break
+    if result is None:
+        if failures == len(providers):
+            raise LookupUnavailable("No book database could be reached.")
+        return None
+    return replace(result, summary=_pick_summary(summaries, result.language))
+
+
+# Frequent short words per language; enough to tell a paragraph's language apart.
+_COMMON_WORDS = {
+    "English": "the and of to in is that with for his her he she was it on as by from this",
+    "Danish": "og i at det en til er som på de med han af for ikke der var hun den har sig",
+    "Swedish": "och i att det som en på är av för med till den har inte han hon var sig",
+    "German": "der die und das ist nicht mit sich auf ein eine zu den von sie er dem im",
+    "French": "le la les et des est une un du que qui dans pour pas il elle au sur",
+    "Spanish": "el la los las y de que en un una es por con para del se su al",
+    "Polish": "i w nie na się z że do to jest jak o ale przez jego jej od po",
+}
+_COMMON_WORDS = {language: set(words.split()) for language, words in _COMMON_WORDS.items()}
+
+
+def detect_language(text: str) -> str:
+    """Best-guess language name for a paragraph, or "" when the text gives too few clues."""
+    words = re.findall(r"\w+", text.casefold())[:300]
+    scores = {language: sum(word in common for word in words) for language, common in _COMMON_WORDS.items()}
+    if re.search(r"[ąćęłńśźż]", text, re.I):
+        scores["Polish"] += 10
+    best = max(scores, key=scores.get)
+    return best if scores[best] >= 3 else ""
+
+
+def _pick_summary(summaries: list[str], book_language: str, allow_fallback: bool = True) -> str:
+    """Prefer a summary in the book's language, then any Danish or English one, then one too short to detect.
+
+    Lookup keeps asking sources until it finds the first kind (allow_fallback=False).
+    """
+    wanted = {name.strip() for name in book_language.split(",") if name.strip()} or {"Danish", "English"}
+    readable = {"Danish", "Norwegian", "English"}  # Norwegian is too close to Danish for word counts.
+    if "Danish" in wanted:
+        wanted.add("Norwegian")
+    detected = [(summary, detect_language(summary)) for summary in summaries if summary]
+    tiers = (wanted, readable, {""}) if allow_fallback else (wanted,)
+    return next((summary for tier in tiers for summary, language in detected if language in tier), "")
 
 
 def lookup_open_library(isbn: str) -> BookMetadata | None:
@@ -374,6 +423,21 @@ def _isbn13_check_digit(base: str) -> int:
 
 def fold(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+_NAME_SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv"}
+
+
+def author_sort_key(author: str) -> str:
+    """Sort key on the first author's surname: "Jane Austen" and "Austen, Jane" both give "austen jane"."""
+    name = fold(re.split(r"\s*(?:;|&|\band\b|\bog\b)\s*", author, maxsplit=1)[0])
+    head, comma, tail = name.partition(",")
+    if comma and len(head.split()) == 1 and tail.strip():
+        return f"{head} {tail.strip()}"
+    words = head.split()
+    while len(words) > 1 and words[-1] in _NAME_SUFFIXES:
+        words.pop()
+    return " ".join(words[-1:] + words[:-1])
 
 
 def find_duplicate(candidate: BookCopy, copies: Iterable[BookCopy]) -> bool:
