@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,33 @@ PORT = 5000
 URL = f"http://{HOST}:{PORT}"
 WAIT_SECONDS = 10
 MAX_BODY = MAX_BACKUP + 64 * 1024
+PROJECT = Path(__file__).resolve().parent.parent
+SCANNER_ASSETS = (
+    Path("node_modules/zxing-wasm/dist/iife/reader/index.js"),
+    Path("node_modules/zxing-wasm/dist/reader/zxing_reader.wasm"),
+)
+
+
+def npm_installed(root: Path = PROJECT) -> bool:
+    # npm ci writes node_modules/.package-lock.json; an older one means package-lock.json changed since.
+    installed = root / "node_modules" / ".package-lock.json"
+    lock = root / "package-lock.json"
+    if not installed.is_file() or not all((root / asset).is_file() for asset in SCANNER_ASSETS):
+        return False
+    return not lock.is_file() or installed.stat().st_mtime >= lock.stat().st_mtime
+
+
+def ensure_npm_packages(root: Path = PROJECT) -> None:
+    if npm_installed(root):
+        return
+    npm = shutil.which("npm")
+    if not npm:
+        print("Bookeeper: npm was not found, so the camera scanner will not load. Install Node.js and run npm ci.",
+              file=sys.stderr)
+        return
+    print("Bookeeper: installing scanner packages with npm ci...")
+    if subprocess.run([npm, "ci"], cwd=root, stdin=subprocess.DEVNULL).returncode:
+        print("Bookeeper: npm ci failed, so the camera scanner will not load.", file=sys.stderr)
 
 
 class Service:
@@ -85,6 +113,7 @@ class Service:
             print(f"Bookeeper: {self.status()}. Try again shortly.", file=sys.stderr)
             return 1
 
+        ensure_npm_packages()
         self.ready.unlink(missing_ok=True)
         self.listen_host.write_text(host, encoding="ascii")
         token = uuid4().hex

@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import subprocess
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
@@ -16,7 +18,7 @@ from bookeeper.quotes import (
     Quote, Unavailable, _display_name, _title_variants, fallback_quote, gutenberg_sentences, needs_refresh,
     refresh_quote, wikiquote_lines,
 )
-from bookeeper.service import ALL_INTERFACES, HOST, Service, main
+from bookeeper.service import ALL_INTERFACES, HOST, SCANNER_ASSETS, Service, ensure_npm_packages, main
 from bookeeper.version import build_version
 from bookeeper.storage import Store
 
@@ -57,6 +59,31 @@ class ServiceTests(unittest.TestCase):
                 service_type.return_value.start.return_value = 0
                 self.assertEqual(main(), 0)
             service_type.return_value.start.assert_called_once_with(ALL_INTERFACES)
+
+    def test_npm_ci_runs_only_when_packages_are_missing_or_stale(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock = root / "package-lock.json"
+            lock.write_text("{}", encoding="utf-8")
+            with patch("bookeeper.service.shutil.which", return_value="npm"), \
+                    patch("bookeeper.service.subprocess.run") as run:
+                run.return_value.returncode = 0
+                ensure_npm_packages(root)
+                run.assert_called_once_with(["npm", "ci"], cwd=root, stdin=subprocess.DEVNULL)
+
+                for asset in SCANNER_ASSETS:
+                    (root / asset).parent.mkdir(parents=True, exist_ok=True)
+                    (root / asset).write_bytes(b"")
+                installed = root / "node_modules" / ".package-lock.json"
+                installed.write_text("{}", encoding="utf-8")
+                os.utime(lock, (1, 1))
+                run.reset_mock()
+                ensure_npm_packages(root)
+                run.assert_not_called()
+
+                os.utime(installed, (0, 0))
+                ensure_npm_packages(root)
+                run.assert_called_once()
 
 
 class CatalogTests(unittest.TestCase):

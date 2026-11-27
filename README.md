@@ -25,6 +25,8 @@ The setup script prompts for a username and a non-empty password. It only
 works before any account exists. The menu shows the current status. Choose
 **1** to start Bookeeper on localhost, **2** to stop it, **3** to restart it,
 **4** to start it on all network interfaces, or **0** to exit without changes.
+Starting or restarting runs `npm ci` first if the scanner packages are missing
+or `package-lock.json` has changed since the last install.
 Starting on all interfaces makes Bookeeper accessible to other devices on your
 LAN; only use it on a trusted network.
 

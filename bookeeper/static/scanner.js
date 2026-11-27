@@ -207,7 +207,8 @@ begin.addEventListener("click", async () => {
         await loadBarcodeEngine();
     } catch (error) {
         console.warn("Bookeeper could not load the barcode scanner.", error);
-        showStatus("The scanner could not load. You can still type or paste the ISBN.");
+        const detail = error instanceof Event ? `${error.target?.src || "script"} failed to load` : error?.message || String(error);
+        showStatus(`The scanner could not load (${detail}). You can still type or paste the ISBN.`);
         begin.disabled = false;
         return;
     }
