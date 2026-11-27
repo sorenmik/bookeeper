@@ -27,7 +27,7 @@ from .catalog import (
 )
 from .places import UNPLACED, filter_options, mini_map, parse_slot, slot_label, slot_labels, slot_options, valid_filter
 from .shelves import register_shelves
-from .workflows import READING_STATUSES, reading_for, register_workflows
+from .workflows import READING_STATUSES, currently_reading, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
 from .dashboard import activity
 from .quotes import needs_refresh, quote_for_display, refresh_quote
@@ -335,6 +335,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             recent=books[:8],
             wishlist=wishlist[:4],
             wishlist_count=len(wishlist),
+            reading_now=currently_reading(library),
             activity=activity(library, date.today()),
         )
 

@@ -82,8 +82,16 @@
         {% include "activity-chart.html" %}
     </section>
 
-    <section class="card home-wishlist" aria-labelledby="home-wishlist">
+    <section class="card home-wishlist" aria-labelledby="home-reading home-wishlist">
         <p class="eyebrow">Just for you</p>
+        <h2 id="home-reading">{{ icon('catalog') }} Reading now</h2>
+        {% if reading_now %}
+            <ul>{% for book in reading_now %}
+                <li><a href="{{ url_for('edit_copy', copy_id=book.id) }}"><strong>{{ book.title }}</strong></a>{% if book.author %}<small>{{ book.author }}</small>{% endif %}</li>
+            {% endfor %}</ul>
+        {% else %}
+            <p class="muted">No books marked as reading.</p>
+        {% endif %}
         <h2 id="home-wishlist">{{ icon('wishlist') }} My wishlist</h2>
         {% if wishlist %}
             <p class="muted">{{ wishlist_count }} {{ 'book' if wishlist_count == 1 else 'books' }} on your list</p>

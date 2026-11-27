@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import date
+from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -18,6 +18,16 @@ READING_STATUSES = ("unread", "reading", "finished", "abandoned")
 
 def reading_for(library: Library, copy_id: str) -> Reading:
     return library.get("reading", {}).get(copy_id, {"status": "unread", "dates": []})
+
+
+def currently_reading(library: Library) -> list[BookCopy]:
+    """Copies marked Reading, most recently started first; copies without a start time come last."""
+    records = [
+        (record.get("status_since", ""), library["copies"][key])
+        for key, record in library.get("reading", {}).items()
+        if record["status"] == "reading" and key in library["copies"]
+    ]
+    return [book for _since, book in sorted(records, key=lambda item: item[0], reverse=True)]
 
 
 def iso_date(value: str) -> str:
@@ -47,8 +57,8 @@ def register_workflows(app: Flask, store: Store) -> None:
             if copy_id not in library["copies"]:
                 abort(404)
             record = reading_for(library, copy_id)
-            if status == "finished" and not (finished or record["dates"]):
-                abort(400, "Enter the date this book was finished.")
+            if record["status"] != status:
+                record["status_since"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             record["status"] = status
             if finished:
                 record["dates"].append(finished)

@@ -85,9 +85,12 @@ def validate_backup(data: bytes) -> dict:
             iso_date(book["added_on"])
         need(not book["location_id"] or parse_slot(book["location_id"], units) is not None)
     for key, item in reading.items():
-        need(set(item) == {"status", "dates"})
+        need(set(item) in ({"status", "dates"}, {"status", "dates", "status_since"}))
         need(key in copies and item.get("status") in READING_STATUSES and isinstance(item.get("dates"), list))
         need(all(isinstance(value, str) and bool(iso_date(value)) for value in item["dates"]))
+        if "status_since" in item:
+            need(strings(item, "status_since"))
+            datetime.fromisoformat(item["status_since"])
     outstanding = set()
     for item in loans.values():
         need(set(item) == {"direction", "copy_id", "title", "person", "started", "due", "returned"})

@@ -91,9 +91,10 @@
     <label>Status <select name="status">
         {% for status in reading_statuses %}<option value="{{ status }}"{% if status == reading.status %} selected{% endif %}>{{ status|capitalize }}</option>{% endfor %}
     </select></label>
-    <label>Record a finish date <input type="date" name="finished"></label>
-    <small>Choose Finished and enter a date to add a read or reread.</small>
-    {% if reading.dates %}<p>Finished: {{ reading.dates|join(', ') }}</p>{% endif %}
+    <label>Record a finish date (optional) <input type="date" name="finished"></label>
+    <small>Choose Finished and enter a date to add a read or reread. Leave the date empty if you don't remember it.</small>
+    {% if reading.dates %}<p>Finished: {{ reading.dates|join(', ') }}</p>
+    {% elif reading.status == 'finished' %}<p>Finished: date unknown</p>{% endif %}
     <button type="submit">Save reading history</button>
 </form>
 <form class="card fields narrow" method="post" action="{{ url_for('household.save_note', copy_id=book.id) }}">

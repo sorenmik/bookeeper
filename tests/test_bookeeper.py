@@ -474,6 +474,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.submit(self.owner, "/copies/new", title=title, genre="Travel").status_code, 302)
         return next(key for key, copy in self.store.read()["copies"].items() if copy["title"] == title)
 
+    def test_home_lists_books_being_read_newest_first(self):
+        first, second, legacy = (self.add_copy(title) for title in ("First read", "Second read", "Legacy read"))
+        for copy_id in (first, second):
+            self.assertEqual(self.submit(self.owner, f"/copies/{copy_id}/reading", status="reading").status_code, 302)
+        with self.store.edit() as library:
+            library["reading"][first]["status_since"] = "2020-01-01T00:00:00+00:00"
+            library["reading"][legacy] = {"status": "reading", "dates": []}
+        self.assertEqual(self.submit(self.owner, f"/copies/{first}/reading", status="reading").status_code, 302)
+        self.assertEqual(self.store.read()["reading"][first]["status_since"], "2020-01-01T00:00:00+00:00")
+        home = self.member.get("/").data.decode()
+        home = home[home.index("Reading now"):home.index("My wishlist")]
+        self.assertLess(home.index("Second read"), home.index("First read"))
+        self.assertLess(home.index("First read"), home.index("Legacy read"))
+
     def test_wishlist_and_notes_are_private_until_purchase(self):
         self.assertEqual(self.submit(self.member, "/wishlist", title="Secret book").status_code, 302)
         key = next(iter(self.store.read()["wishlists"]["member"]))
@@ -532,7 +546,9 @@ class WorkflowTests(unittest.TestCase):
         copy_id = self.add_copy()
         today = date.today().isoformat()
         path = f"/copies/{copy_id}/reading"
-        self.assertEqual(self.submit(self.owner, path, status="finished").status_code, 400)
+        self.assertEqual(self.submit(self.owner, path, status="finished").status_code, 302)
+        self.assertIn(b"Finished: date unknown", self.owner.get(f"/copies/{copy_id}/edit").data)
+        self.assertEqual(self.store.read()["reading"][copy_id]["dates"], [])
         for client in (self.member, self.owner):
             self.assertEqual(self.submit(client, path, status="finished", finished=today).status_code, 302)
         stats = self.member.get("/stats").data
@@ -734,9 +750,12 @@ class DataTests(unittest.TestCase):
                     if stamp:
                         book["added_on"] = stamp
                     library["copies"][key] = book
-                library["reading"] = {"recent": {"status": "finished", "dates": ["2024-12-20", "2025-01-10"]}}
+                library["reading"] = {
+                    "recent": {"status": "finished", "dates": ["2024-12-20", "2025-01-10"]},
+                    "old": {"status": "finished", "dates": []},
+                }
             result = activity(store.read(), date(2025, 1, 15))
-            self.assertEqual((result.copies, result.copies_read, result.finished_this_year, result.undated_copies), (3, 1, 1, 1))
+            self.assertEqual((result.copies, result.copies_read, result.finished_this_year, result.undated_copies), (3, 2, 1, 1))
             self.assertEqual((result.months[0].label, result.months[-1].label), ("Feb 2024", "Jan 2025"))
             self.assertEqual([(month.added, month.finished) for month in result.months[-2:]], [(1, 1), (0, 1)])
             self.assertEqual(sum(month.added for month in result.months), 1)

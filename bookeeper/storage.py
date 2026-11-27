@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from filelock import FileLock
 
@@ -63,6 +63,7 @@ class BookCopy(BookCopyRequired, total=False):
 class Reading(TypedDict):
     status: str
     dates: list[str]
+    status_since: NotRequired[str]
 
 
 class Loan(TypedDict):

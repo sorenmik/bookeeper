@@ -27,6 +27,11 @@ def activity(library: Library, today: date) -> LibraryActivity:
     copies = library["copies"]
     dated = [stamp for book in copies.values() if (stamp := book.get("added_on"))]
     histories = [record["dates"] for key, record in library.get("reading", {}).items() if key in copies]
+    # Finished without a date means the finish date is unknown: counted as read, left out of the monthly chart.
+    read = sum(
+        bool(record["dates"]) or record["status"] == "finished"
+        for key, record in library.get("reading", {}).items() if key in copies
+    )
     added = Counter(stamp[:7] for stamp in dated)
     finished = Counter(stamp[:7] for read_dates in histories for stamp in read_dates)
     last = today.year * 12 + today.month - 1
@@ -37,7 +42,7 @@ def activity(library: Library, today: date) -> LibraryActivity:
         months.append(MonthActivity(start.strftime("%b %Y"), start.strftime("%b"), added[key], finished[key]))
     return LibraryActivity(
         copies=len(copies),
-        copies_read=sum(bool(days) for days in histories),
+        copies_read=read,
         finished_this_year=sum(count for month, count in finished.items() if month.startswith(f"{today.year}-")),
         undated_copies=len(copies) - len(dated),
         months=months,
