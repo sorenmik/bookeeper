@@ -265,6 +265,24 @@ class CatalogTests(unittest.TestCase):
         self.assertNotIn(b"336 pages", catalog.data)
         self.assertIn(b'class="reading-badge status-unread"', catalog.data)
 
+    def test_bulk_add_places_books_and_reports_lookup_failures(self):
+        self.login()
+        shelf = self.add_unit(self.add_storage("Study"), "shelf", "Wall shelf", 2)
+        slot = f"{shelf}:1:2"
+        self.assertEqual(self.client.get("/copies/bulk", query_string={"slot": "missing"}).status_code, 404)
+        self.assertIn(b"Wall shelf", self.client.get("/copies/bulk", query_string={"slot": slot}).data)
+        self.assertIn(f"/copies/bulk?slot={slot}".encode(), self.client.get("/locations?bulk=1").data)
+        with patch("bookeeper.lookup_isbn", return_value=BookMetadata("Scanned", "Writer")):
+            added = self.post("/copies/bulk/add", isbn="0-14-143951-3", location_id=slot).get_json()
+        self.assertEqual((added["status"], added["title"]), ("added", "Scanned"))
+        copy = next(iter(self.store.read()["copies"].values()))
+        self.assertEqual((copy["isbn"], copy["location_id"]), ("9780141439518", slot))
+        with patch("bookeeper.lookup_isbn", return_value=None):
+            missing = self.post("/copies/bulk/add", isbn="9780141439518", location_id=slot).get_json()
+        self.assertEqual(missing["status"], "failed")
+        self.assertEqual(len(self.store.read()["copies"]), 1)
+        self.assertEqual(self.post("/copies/bulk/add", isbn="123").get_json()["status"], "failed")
+
     def test_catalog_synopsis_is_short_and_title_links_to_details(self):
         self.login()
         synopsis = "A sample synopsis with useful details. " + "long description " * 12 + "THE VERY END"

@@ -101,6 +101,11 @@ function loadOcr() {
 }
 
 async function acceptIsbn(value) {
+    // The bulk page handles each ISBN itself and keeps the camera running.
+    if (window.bulkIsbnHandler) {
+        window.bulkIsbnHandler(value, resumeScanning);
+        return;
+    }
     const isbn = document.querySelector("#isbn");
     isbn.value = value;
     showStatus("ISBN scanned. Looking up the book details…");
@@ -108,6 +113,11 @@ async function acceptIsbn(value) {
     const lookup = document.querySelector("#isbn-lookup");
     if (isbn.form.requestSubmit) isbn.form.requestSubmit(lookup);
     else lookup.click();
+}
+
+function resumeScanning() {
+    if (!scanner || scanner.stopped) return;
+    scanner.resume();
 }
 
 class BarcodeCamera {
@@ -160,8 +170,24 @@ class BarcodeCamera {
         this.onIsbn(value);
     }
 
+    resume() {
+        if (this.running) return;
+        this.running = true;
+        this.scheduleScan();
+        if (!this.readingText) this.readText();
+    }
+
     // Runs alongside barcode scanning for older books that only print the ISBN as text.
     async readText() {
+        this.readingText = true;
+        try {
+            await this.readTextFrames();
+        } finally {
+            this.readingText = false;
+        }
+    }
+
+    async readTextFrames() {
         let worker;
         try {
             worker = await loadOcr();

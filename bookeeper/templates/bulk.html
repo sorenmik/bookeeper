@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Bulk add · Bookeeper{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='scanner.js') }}" defer></script>
+<script src="{{ url_for('static', filename='bulk.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="heading">
+    <h1>Bulk add</h1>
+    <a class="button primary" href="{{ url_for('locations') if slot else url_for('catalog') }}">Done</a>
+</div>
+<div id="bulk" data-csrf="{{ session.csrf }}" data-slot="{{ slot }}" data-url="{{ url_for('bulk_add_copy') }}">
+    <p>
+        {% if slot %}Books are placed in <strong>{{ location_path }}</strong>.{% else %}Books are added unplaced.{% endif %}
+        Scan one book after another. Each ISBN found is added straight away.
+        The same ISBN twice in a row is ignored.
+    </p>
+    <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
+         data-wasm="{{ url_for('scanner_wasm_binary') }}"
+         data-ocr="{{ url_for('ocr_asset', name='tesseract.min.js') }}"
+         data-ocr-worker="{{ url_for('ocr_asset', name='worker.min.js') }}"
+         data-ocr-files="{{ url_for('ocr_asset', name='x')[:-1] }}">
+        <button type="button" id="scan-start" class="primary">Start scanning</button>
+        <button type="button" id="scan-stop" hidden>Stop camera</button>
+        <div id="scan-preview-options" hidden>
+            <label class="check"><input type="checkbox" id="scan-mirror"> Mirror preview</label>
+        </div>
+        <p id="scan-status" role="status"></p>
+        <div class="scan-frame">
+            <div id="scan-view" hidden></div>
+        </div>
+    </div>
+    <p id="bulk-result" class="notice" role="status" hidden></p>
+    <p><strong>Added: <span id="bulk-added">0</span></strong></p>
+    <section id="bulk-failed-box" class="card" hidden>
+        <h2>Not added: set these aside for manual entry</h2>
+        <ul id="bulk-failed-list"></ul>
+    </section>
+    <ul id="bulk-added-list"></ul>
+</div>
+{% endblock %}

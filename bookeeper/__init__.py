@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import click
 from filelock import Timeout
-from flask import Flask, abort, flash, g, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.wrappers import Response
@@ -480,6 +480,37 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         if error:
             return page, 409 if duplicate else 400
         return page
+
+    @app.get("/copies/bulk")
+    def bulk_add() -> str:
+        library = store.read()
+        slot = request.args.get("slot", "")
+        if slot and parse_slot(slot, library["units"]) is None:
+            abort(404, "That slot does not exist.")
+        return render_template("bulk.html", slot=slot, location_path=slot_label(slot, library))
+
+    @app.post("/copies/bulk/add")
+    def bulk_add_copy() -> Response:
+        slot = request.form.get("location_id", "")
+        try:
+            isbn = normalize_isbn(request.form.get("isbn", ""))
+        except ValueError:
+            return jsonify(status="failed", message="That is not a valid ISBN.")
+        try:
+            match = lookup_isbn(isbn)
+        except LookupUnavailable:
+            return jsonify(status="failed", isbn=isbn, message="No book database could be reached.")
+        if match is None:
+            return jsonify(status="failed", isbn=isbn, message="No book database found this ISBN.")
+        book = fill_book_metadata(
+            BookCopy(id=uuid4().hex, title="", author="", series="", isbn=isbn, tags=[], location_id=slot), match
+        )
+        with store.edit() as latest:
+            if slot and parse_slot(slot, latest["units"]) is None:
+                abort(404, "That slot does not exist.")
+            book["added_on"] = date.today().isoformat()
+            latest["copies"][book["id"]] = book
+        return jsonify(status="added", isbn=isbn, title=book["title"], author=book["author"])
 
     @app.post("/copies/<copy_id>/delete")
     def delete_copy(copy_id: str) -> Response:

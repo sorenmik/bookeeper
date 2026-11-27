@@ -3,12 +3,16 @@
 {% block title %}Locations · Bookeeper{% endblock %}
 {% block content %}
 {% set adding = request.args.get('add') == '1' %}
+{% set picking = request.args.get('bulk') == '1' and not adding %}
 <div class="heading">
     <h1>{{ 'Add storage or unit' if adding else 'Locations' }}</h1>
     <div class="actions">
         {% if adding %}
             <a href="{{ url_for('locations') }}">Back to the map</a>
+        {% elif picking %}
+            <a href="{{ url_for('locations') }}">Cancel</a>
         {% else %}
+            {% if zones %}<a class="button" href="{{ url_for('locations', bulk=1) }}">Bulk add to a shelf</a>{% endif %}
             <a class="button primary" href="{{ url_for('locations', add=1) }}">{{ icon('add') }} Add storage or unit</a>
         {% endif %}
     </div>
@@ -41,7 +45,11 @@
         {% endif %}
     </div>
 {% else %}
+    {% if picking %}
+    <p class="notice" role="status"><strong>Click the shelf slot</strong> where the scanned books should be placed. Scanning starts on the next page.</p>
+    {% else %}
     <p class="muted">Drag a unit by its name to move it. Select a slot to see its books. Numbers show how many books each slot holds.</p>
+    {% endif %}
     <div class="actions">
         <a href="{{ url_for('catalog', location=unplaced) }}">{{ unplaced_count }} unplaced {{ 'book' if unplaced_count == 1 else 'books' }}</a>
         {% if last_move %}
@@ -71,7 +79,7 @@
                 <div class="slot-grid" style="--cols:{{ unit.cols }}">
                     {% for line in unit.grid %}{% for cell in line %}
                         <a class="slot{% if cell.count == 0 %} is-empty{% elif cell.count >= capacity %} is-full{% endif %}{% if cell.id == highlight %} is-target{% endif %}"
-                           id="slot-{{ cell.id|replace(':', '-') }}" href="{{ url_for('show_slot', slot_id=cell.id) }}"
+                           id="slot-{{ cell.id|replace(':', '-') }}" href="{{ url_for('bulk_add', slot=cell.id) if picking else url_for('show_slot', slot_id=cell.id) }}"
                            title="{{ unit.name }}{% if cell.name %} · {{ cell.name }}{% endif %}: {{ cell.count }} {{ 'book' if cell.count == 1 else 'books' }}"
                            aria-label="{{ zone.name }}, {{ unit.name }}{% if cell.name %}, {{ cell.name }}{% endif %}: {{ cell.count }} {{ 'book' if cell.count == 1 else 'books' }}">
                             <span class="slot-name">{{ cell.name }}</span>
