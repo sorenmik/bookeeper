@@ -1,4 +1,5 @@
 from collections import Counter
+from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -7,13 +8,15 @@ import qrcode
 import qrcode.image.svg
 from flask import Blueprint, Flask, Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from .catalog import LookupUnavailable, author_sort_key, find_duplicate, fold, lookup_isbn, normalize_isbn
+from .catalog import LookupUnavailable, author_sort_key, find_duplicate, fold, lookup_isbn, normalize_isbn, positive_number
 from .dashboard import activity
 from .places import slot_labels
 from .storage import BookCopy, Library, Loan, Reading, Store
 
 
 READING_STATUSES = ("unread", "reading", "finished", "abandoned")
+# Book details beyond title, author and ISBN that a wish keeps from an ISBN lookup, with their length limits.
+WISH_TEXT_FIELDS = {"summary": 5000, "genre": 80, "format": 80, "publisher": 250, "publication_date": 80, "language": 80}
 
 
 def reading_for(library: Library, copy_id: str) -> Reading:
@@ -104,14 +107,29 @@ def register_workflows(app: Flask, store: Store) -> None:
                 abort(400, str(exc))
         key = uuid4().hex
         with store.edit() as library:
-            book = BookCopy(id=key, title=title, author=author, isbn=isbn, series="", tags=[], location_id="")
+            book = BookCopy(
+                id=key, title=title, author=author, isbn=isbn, series="", tags=[], location_id="", **wish_details(request.form),
+            )
             library.setdefault("wishlists", {}).setdefault(g.user, {})[key] = book
         flash("Book added to your wishlist.", "success")
         return redirect(url_for("household.wishlist"))
 
+    def wish_details(form: Mapping[str, str]) -> dict[str, object]:
+        """Looked-up details carried in hidden fields; kept on the wish and moved to the catalog when bought."""
+        details: dict[str, object] = {}
+        for field, limit in WISH_TEXT_FIELDS.items():
+            if value := form.get(field, "").strip():
+                if len(value) > limit:
+                    abort(400, f"The {field.replace('_', ' ')} is limited to {limit:,} characters.")
+                details[field] = value
+        for field in ("pages", "cover_id"):
+            if (value := positive_number(form.get(field, ""))) is not None:
+                details[field] = value
+        return details
+
     def wishlist_lookup(title: str, author: str, isbn: str) -> tuple[str, int] | str:
-        """Fills blank title and author from the book databases so the wish can be reviewed before saving."""
-        wish = {"title": title[:250], "author": author[:250], "isbn": isbn[:32]}
+        """Fills the wish from the book databases so it can be reviewed before saving."""
+        wish: dict[str, object] = {"title": title[:250], "author": author[:250], "isbn": isbn[:32]}
         try:
             wish["isbn"] = normalize_isbn(isbn)
         except ValueError as exc:
@@ -128,6 +146,7 @@ def register_workflows(app: Flask, store: Store) -> None:
         if match:
             wish["title"] = wish["title"] or match.title
             wish["author"] = wish["author"] or match.author
+            wish.update({field: getattr(match, field) for field in (*WISH_TEXT_FIELDS, "pages", "cover_id")})
         return render_template(
             "wishlist.html", adding=True, wish=wish, notice=notice, lookup_result="found" if match else "failed",
         )

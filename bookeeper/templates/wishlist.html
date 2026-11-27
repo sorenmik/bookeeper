@@ -24,6 +24,9 @@
     <label>Title <input name="title" required maxlength="250" value="{{ wish.title }}"></label>
     <label>Author <input name="author" maxlength="250" value="{{ wish.author }}"></label>
     <label>ISBN (optional) <input id="isbn" name="isbn" maxlength="32" value="{{ wish.isbn }}"></label>
+    {% for field in ('summary', 'genre', 'format', 'publisher', 'publication_date', 'language', 'pages', 'cover_id') %}
+        {% if wish[field] %}<input type="hidden" name="{{ field }}" value="{{ wish[field] }}">{% endif %}
+    {% endfor %}
     <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
          data-wasm="{{ url_for('scanner_wasm_binary') }}"
          data-ocr="{{ url_for('ocr_asset', name='tesseract.min.js') }}"
@@ -52,11 +55,12 @@
         <div>
             <h2>{{ book.title }}</h2>
             {% if book.author %}<small>{{ book.author }}</small>{% endif %}
+            {% if book.isbn %}<small>ISBN {{ book.isbn }}</small>{% endif %}
             {% if book.id in duplicates %}<small>Already in the catalog. Marking it bought adds another copy.</small>{% endif %}
         </div>
         <form class="actions" method="post">
             <input type="hidden" name="csrf" value="{{ session.csrf }}">
-            <button type="submit" formaction="{{ url_for('household.change_wishlist', key=book.id, action='bought') }}">Mark bought</button>
+            <button type="submit" formaction="{{ url_for('household.change_wishlist', key=book.id, action='bought') }}">Mark bought and move to catalog</button>
             <button type="submit" formaction="{{ url_for('household.change_wishlist', key=book.id, action='remove') }}">Remove</button>
         </form>
     </li>

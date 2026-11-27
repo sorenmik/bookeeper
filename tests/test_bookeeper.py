@@ -489,19 +489,32 @@ class WorkflowTests(unittest.TestCase):
         self.assertLess(home.index("First read"), home.index("Legacy read"))
 
     def test_wishlist_isbn_lookup_prefills_title_author_and_isbn(self):
-        with patch("bookeeper.workflows.lookup_isbn", return_value=BookMetadata("Wished", "Writer", pages=99)) as fetch:
+        details = BookMetadata("Wished", "Writer", summary="A long synopsis", genre="Fantasy", pages=99, cover_id=7)
+        with patch("bookeeper.workflows.lookup_isbn", return_value=details) as fetch:
             page = self.submit(self.member, "/wishlist", action="lookup", isbn="0-14-143951-3")
         fetch.assert_called_once_with("9780141439518")
-        for value in (b"Wished", b"Writer", b"9780141439518"):
+        for value in (b"Wished", b"Writer", b"9780141439518", b"A long synopsis", b"Fantasy", b"99"):
             self.assertIn(b'value="' + value + b'"', page.data)
         self.assertIn(b'data-lookup="found"', page.data)
         self.assertNotIn("wishlists", self.store.read())
         with patch("bookeeper.workflows.lookup_isbn", return_value=None):
             self.assertIn(b'data-lookup="failed"', self.submit(self.member, "/wishlist", action="lookup", isbn="9780141439518").data)
         self.assertEqual(self.submit(self.member, "/wishlist", action="lookup", isbn="123").status_code, 400)
-        self.assertEqual(self.submit(self.member, "/wishlist", title="Wished", author="Writer", isbn="9780141439518").status_code, 302)
+        saved = dict(title="Wished", author="Writer", isbn="9780141439518", summary="A long synopsis", genre="Fantasy",
+                     pages="99", cover_id="7")
+        self.assertEqual(self.submit(self.member, "/wishlist", **{**saved, "genre": "x" * 81}).status_code, 400)
+        self.assertEqual(self.submit(self.member, "/wishlist", **saved).status_code, 302)
+        key, wish = next(iter(self.store.read()["wishlists"]["member"].items()))
+        self.assertEqual((wish["isbn"], wish["genre"], wish["pages"]), ("9780141439518", "Fantasy", 99))
+        listing = self.member.get("/wishlist").data
+        self.assertIn(b"ISBN 9780141439518", listing)
+        self.assertNotIn(b"A long synopsis", listing)
+        self.assertIn(b"Mark bought and move to catalog", listing)
+        self.assertEqual(self.submit(self.member, f"/wishlist/{key}/bought").status_code, 302)
+        copy = next(iter(self.store.read()["copies"].values()))
         self.assertEqual(
-            next(iter(self.store.read()["wishlists"]["member"].values()))["isbn"], "9780141439518"
+            (copy["title"], copy["summary"], copy["genre"], copy["pages"], copy["cover_id"]),
+            ("Wished", "A long synopsis", "Fantasy", 99, 7),
         )
 
     def test_todo_ideas_are_shared_and_removable(self):
