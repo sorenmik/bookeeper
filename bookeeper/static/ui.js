@@ -1,8 +1,7 @@
 "use strict";
 
 const theme = document.querySelector("#theme");
-theme.value = document.documentElement.dataset.theme;
-if (!theme.value) theme.value = document.documentElement.dataset.theme = "simple";
+if (!document.documentElement.dataset.theme) document.documentElement.dataset.theme = "simple";
 theme.addEventListener("change", () => {
     document.documentElement.dataset.theme = theme.value;
     try {
@@ -10,6 +9,8 @@ theme.addEventListener("change", () => {
     } catch {
         // The selected theme still applies on this page.
     }
+    // Keep showing the "Theme" placeholder while the menu is closed.
+    theme.value = "";
 });
 
 // Choosing a unit colour switches off "use the theme's colour".
@@ -33,7 +34,7 @@ if (verbLine) {
             const label = target.labels?.[0]
                 ? [...target.labels[0].childNodes].filter((node) => node.nodeType === Node.TEXT_NODE)
                     .map((node) => node.textContent).join(" ").replace(/\s+/g, " ").trim()
-                : "";
+                : target.getAttribute("aria-label") || "";
             verbLine.textContent = `${target.matches("select") ? "Pick" : "Write in"} ${label || "this"}`;
         } else {
             verbLine.textContent = `${target.matches("a") ? "Walk to" : "Use"} ${nameOf(target)}`;

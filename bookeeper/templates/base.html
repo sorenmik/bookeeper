@@ -31,7 +31,7 @@
                         <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
                     </form>
                 {% endif %}
-                <label class="theme-control">{{ icon('theme') }} Theme <select id="theme"><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option><option value="orchard">Summer evening</option><option value="pixel">Pirate tavern</option></select></label>
+                <select id="theme" class="theme-control" aria-label="Theme" autocomplete="off"><option value="" hidden selected>Theme</option><option value="simple">Simple</option><option value="burnley">Burnley, 1657</option><option value="future">Future</option><option value="orchard">Summer evening</option><option value="pixel">Pirate tavern</option></select>
             </div>
         </nav>
     </header>
