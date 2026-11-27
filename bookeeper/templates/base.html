@@ -26,7 +26,6 @@
                     ) if endpoint != 'backups.index' or g.owner %}
                         <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ icon(symbol) }} {{ label }}</a>
                     {% endfor %}
-                    <a class="qr-link" href="{{ url_for('household.connect') }}"{% if request.endpoint == 'household.connect' %} aria-current="page"{% endif %}><img src="{{ url_for('household.qr') }}" width="27" height="27" alt=""> Connect</a>
                     <form class="account" action="{{ url_for('logout') }}" method="post">
                         <input type="hidden" name="csrf" value="{{ session.csrf }}">
                         <button type="submit" aria-label="Sign out ({{ g.user }})" title="Signed in as {{ g.user }}">{{ icon('logout') }} Sign out</button>
@@ -89,6 +88,9 @@
             <li>Pick up candle: “I'd rather not. Reading by moonlight is how pirates get squinty.”</li>
         </ul>
     </footer>
-    {% if build_version %}<p class="build-version" title="Commit and commit time; + means uncommitted changes">Version {{ build_version }}</p>{% endif %}
+    <footer class="site-footer">
+        {% if g.user %}<a href="{{ url_for('household.connect') }}"{% if request.endpoint == 'household.connect' %} aria-current="page"{% endif %}>Connect</a>{% endif %}
+        {% if build_version %}<span class="build-version" title="Commit and commit time; + means uncommitted changes">Version {{ build_version }}</span>{% endif %}
+    </footer>
 </body>
 </html>

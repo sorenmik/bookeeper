@@ -534,6 +534,9 @@ class WorkflowTests(unittest.TestCase):
         qr = self.owner.get("/connect/qr.svg")
         self.assertEqual(qr.mimetype, "image/svg+xml")
         self.assertIn(b"<svg", qr.data)
+        catalog = self.owner.get("/catalog").data
+        self.assertIn(b'<footer class="site-footer">\n        <a href="/connect"', catalog)
+        self.assertNotIn(b"/connect/qr.svg", catalog)
         self.assertIn(b"River Atlas", self.owner.get("/sorting?by=genre&by=").data)
 
 
