@@ -27,6 +27,12 @@ assert.deepEqual({...findIsbn("ISBN 87-7714-123-7 1990")}, {value: "8777141237",
 assert.equal(findIsbn("ISBN 87-7714-123-4"), null);
 assert.equal(findIsbn("Printed 1990"), null);
 
+const scanBand = runInNewContext(`${scanner}\nscanBand`, {
+    document: {querySelector: () => element},
+    window: {addEventListener() {}},
+});
+assert.deepEqual({...scanBand(1280, 720)}, {x: 0, y: 240, width: 1280, height: 240});
+
 const lookup = {};
 const form = {submitted: null, requestSubmit(button) { this.submitted = button; }};
 const isbnInput = {value: "", form};

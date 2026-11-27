@@ -115,6 +115,24 @@ async function acceptIsbn(value) {
     else lookup.click();
 }
 
+// Only the middle third of the frame height is scanned; the preview is cropped to match.
+function scanBand(width, height) {
+    const top = Math.round(height / 3);
+    return {x: 0, y: top, width, height: Math.round(height * 2 / 3) - top};
+}
+
+function drawScanBand(video, canvas, maxWidth, context = canvas.getContext("2d")) {
+    const band = scanBand(video.videoWidth, video.videoHeight);
+    const scale = Math.min(1, maxWidth / band.width);
+    const width = Math.round(band.width * scale);
+    const height = Math.round(band.height * scale);
+    if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+    }
+    context.drawImage(video, band.x, band.y, band.width, band.height, 0, 0, width, height);
+}
+
 function resumeScanning() {
     if (!scanner || scanner.stopped) return;
     scanner.resume();
@@ -159,6 +177,8 @@ class BarcodeCamera {
         this.element.replaceChildren(this.video);
         await this.video.play();
         if (this.stopped) return;
+        const band = scanBand(this.video.videoWidth, this.video.videoHeight);
+        this.video.style.setProperty("--scan-ratio", `${band.width} / ${band.height}`);
         this.running = true;
         this.scheduleScan();
         this.readText();
@@ -199,10 +219,7 @@ class BarcodeCamera {
         while (this.running) {
             if (this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && this.video.videoWidth) {
                 try {
-                    const scale = Math.min(1, 1600 / this.video.videoWidth);
-                    this.ocrCanvas.width = Math.round(this.video.videoWidth * scale);
-                    this.ocrCanvas.height = Math.round(this.video.videoHeight * scale);
-                    this.ocrCanvas.getContext("2d").drawImage(this.video, 0, 0, this.ocrCanvas.width, this.ocrCanvas.height);
+                    drawScanBand(this.video, this.ocrCanvas, 1600);
                     const {data} = await worker.recognize(this.ocrCanvas);
                     const match = findIsbn(data.text || "");
                     // A checksum alone lets about 1 in 10 misreads through, so unlabelled numbers must be read twice.
@@ -240,14 +257,7 @@ class BarcodeCamera {
         if (!this.running) return;
         if (this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && this.video.videoWidth) {
             try {
-                const scale = Math.min(1, 1280 / this.video.videoWidth);
-                const width = Math.round(this.video.videoWidth * scale);
-                const height = Math.round(this.video.videoHeight * scale);
-                if (this.canvas.width !== width || this.canvas.height !== height) {
-                    this.canvas.width = width;
-                    this.canvas.height = height;
-                }
-                this.context.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                drawScanBand(this.video, this.canvas, 1280, this.context);
                 const pixels = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
                 const results = await ZXingWASM.readBarcodes(pixels, {
                     formats: ["EAN13"],
