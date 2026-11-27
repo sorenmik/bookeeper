@@ -22,7 +22,8 @@
          data-wasm="{{ url_for('scanner_wasm_binary') }}"
          data-ocr="{{ url_for('ocr_asset', name='tesseract.min.js') }}"
          data-ocr-worker="{{ url_for('ocr_asset', name='worker.min.js') }}"
-         data-ocr-files="{{ url_for('ocr_asset', name='x')[:-1] }}">
+         data-ocr-files="{{ url_for('ocr_asset', name='x')[:-1] }}"
+         data-lookup="{{ lookup_result }}">
         <button type="button" id="scan-start">Scan ISBN with camera</button>
         <button type="button" id="scan-stop" hidden>Stop camera</button>
         <div id="scan-preview-options" hidden>

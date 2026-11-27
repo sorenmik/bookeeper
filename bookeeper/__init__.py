@@ -382,6 +382,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
         error = ""
         duplicate = False
         notice = ""
+        lookup_result = ""
         if request.method == "POST":
             book = BookCopy(
                 id=copy_id or uuid4().hex,
@@ -434,6 +435,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                             notice = "No book database found this ISBN. You can enter the details manually."
                         else:
                             book = fill_book_metadata(book, match)
+                            lookup_result = "found"
                             notice = "ISBN found. Review the details and fill in anything left blank before saving."
                 else:
                     with store.edit() as latest:
@@ -464,6 +466,7 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             error=error,
             duplicate=duplicate,
             notice=notice,
+            lookup_result=lookup_result or ("failed" if request.form.get("action") == "lookup" else ""),
             reading=reading_for(library, copy_id or ""),
             reading_statuses=READING_STATUSES,
             note=library.get("notes", {}).get(g.user, {}).get(copy_id or "", ""),

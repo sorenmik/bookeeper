@@ -21,7 +21,7 @@
         </form>
         <nav class="home-actions" aria-label="Quick actions">
             <a class="button" href="{{ url_for('edit_copy') }}">{{ icon('add') }} Add a book</a>
-            <a class="button" href="{{ url_for('edit_copy', _anchor='scanner-controls') }}">{{ icon('scan') }} Scan an ISBN</a>
+            <a class="button" href="{{ url_for('edit_copy', scan=1, _anchor='scanner-controls') }}">{{ icon('scan') }} Scan an ISBN</a>
             <a class="button" href="{{ url_for('locations') }}">{{ icon('floor') }} Open the shelf map</a>
         </nav>
     </div>

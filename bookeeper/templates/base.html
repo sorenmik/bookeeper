@@ -90,7 +90,7 @@
     </footer>
     <footer class="site-footer">
         {% if g.user %}<a href="{{ url_for('household.connect') }}"{% if request.endpoint == 'household.connect' %} aria-current="page"{% endif %}>Connect</a>{% endif %}
-        {% if build_version %}<span class="build-version" title="Commit and commit time; + means uncommitted changes">Version {{ build_version }}</span>{% endif %}
+        {% if build_version %}<a class="build-version" href="https://github.com/sorenmik/bookeeper" rel="noopener noreferrer" title="Commit and commit time; + means uncommitted changes. Opens the GitHub repository.">Version {{ build_version }}</a>{% endif %}
     </footer>
 </body>
 </html>

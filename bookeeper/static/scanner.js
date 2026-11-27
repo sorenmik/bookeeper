@@ -12,6 +12,39 @@ let scanner;
 let load;
 let stopping = false;
 let scanHint;
+let audio;
+
+// Each kind has its own sound so the result can be told apart without looking.
+const SOUNDS = {
+    scan: {tones: [[1400, 0.06]], wave: "sine", vibrate: 40},
+    found: {tones: [[660, 0.1], [990, 0.16]], wave: "sine", vibrate: [80, 60, 80]},
+    error: {tones: [[200, 0.25], [0, 0.08], [160, 0.35]], wave: "sawtooth", vibrate: [250, 100, 250]},
+};
+
+function beep(kind) {
+    const sound = SOUNDS[kind];
+    try {
+        audio = audio || new AudioContext();
+        if (audio.state === "suspended") audio.resume();
+        let at = audio.currentTime;
+        for (const [frequency, length] of sound.tones) {
+            if (frequency) {
+                const tone = audio.createOscillator();
+                const volume = audio.createGain();
+                tone.type = sound.wave;
+                tone.frequency.value = frequency;
+                volume.gain.value = kind === "error" ? 0.08 : 0.15;
+                tone.connect(volume).connect(audio.destination);
+                tone.start(at);
+                tone.stop(at + length);
+            }
+            at += length;
+        }
+    } catch (error) {
+        console.warn("Bookeeper could not play a sound.", error);
+    }
+    if (navigator.vibrate) navigator.vibrate(sound.vibrate);
+}
 
 function showStatus(text) {
     clearTimeout(scanHint);
@@ -101,6 +134,7 @@ function loadOcr() {
 }
 
 async function acceptIsbn(value) {
+    beep("scan");
     // The bulk page handles each ISBN itself and keeps the camera running.
     if (window.bulkIsbnHandler) {
         window.bulkIsbnHandler(value, resumeScanning);
@@ -363,3 +397,23 @@ begin.addEventListener("click", async () => {
         showStatus("Could not open the camera. Check browser permissions or type the ISBN manually.");
     }
 });
+
+// Browsers only allow sound after the user has touched the page, so unlock audio on the first touch.
+document.addEventListener("pointerdown", () => {
+    try {
+        audio = audio || new AudioContext();
+        if (audio.state === "suspended") audio.resume();
+    } catch (error) {
+        console.warn("Bookeeper could not enable sound.", error);
+    }
+}, {once: true, capture: true});
+
+if (controls.dataset.lookup) beep(controls.dataset.lookup === "found" ? "found" : "error");
+
+const pageUrl = new URL(window.location.href);
+if (pageUrl.searchParams.get("scan") === "1") {
+    // Drop the flag so the lookup form, which posts to this URL, does not reopen the camera.
+    pageUrl.searchParams.delete("scan");
+    window.history.replaceState(null, "", pageUrl);
+    begin.click();
+}

@@ -250,12 +250,14 @@ class CatalogTests(unittest.TestCase):
         self.assertIn(b'value="My title"', result.data)
         self.assertIn(b'value="Remote author"', result.data)
         self.assertIn(b'value="My genre"', result.data)
+        self.assertIn(b'data-lookup="found"', result.data)
         for value in (b"Paperback", b"336", b"Example Press", b"2020", b"English", b"123"):
             self.assertIn(b'value="' + value + b'"', result.data)
         self.assertFalse(self.store.read()["copies"])
         with patch("bookeeper.lookup_isbn", side_effect=LookupUnavailable):
             unavailable = self.post("/copies/new", action="lookup", isbn="9780141439518")
         self.assertIn(b"enter the details manually", unavailable.data)
+        self.assertIn(b'data-lookup="failed"', unavailable.data)
         self.assertEqual(
             self.post("/copies/new", isbn="9780141439518", title="Manual title", pages="336", language="English").status_code, 302
         )
