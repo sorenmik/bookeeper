@@ -19,7 +19,10 @@
     <label>ISBN (optional) <input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
     <small id="isbn-help">Lookup fills blank fields from Open Library, the Royal Danish Library, Libris or Google Books. Subjects are used as a genre suggestion.</small>
     <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
-         data-wasm="{{ url_for('scanner_wasm_binary') }}">
+         data-wasm="{{ url_for('scanner_wasm_binary') }}"
+         data-ocr="{{ url_for('ocr_asset', name='tesseract.min.js') }}"
+         data-ocr-worker="{{ url_for('ocr_asset', name='worker.min.js') }}"
+         data-ocr-files="{{ url_for('ocr_asset', name='x')[:-1] }}">
         <button type="button" id="scan-start">Scan ISBN with camera</button>
         <button type="button" id="scan-stop" hidden>Stop camera</button>
         <div id="scan-preview-options" hidden>

@@ -343,7 +343,15 @@ class ScannerAssetTests(unittest.TestCase):
             reader_data, wasm_mimetype = reader.data, wasm.mimetype
             reader.close()
             wasm.close()
+            language = client.get("/ocr/eng.traineddata.gz")
+            language_head, language_encoding = language.data[:2], language.headers.get("Content-Encoding")
+            language.close()
+            ocr_status = [client.get(f"/ocr/{name}").status_code for name in ("tesseract.min.js", "worker.min.js",
+                                                                              "tesseract-core-lstm.wasm.js", "package.json")]
 
+        self.assertEqual(language_head, b"\x1f\x8b")
+        self.assertIsNone(language_encoding)
+        self.assertEqual(ocr_status, [200, 200, 200, 404])
         self.assertEqual(reader.status_code, 200)
         self.assertIn(b"ZXingWASM", reader_data)
         self.assertEqual(wasm.status_code, 200)

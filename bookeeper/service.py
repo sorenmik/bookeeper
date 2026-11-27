@@ -23,6 +23,9 @@ PROJECT = Path(__file__).resolve().parent.parent
 SCANNER_ASSETS = (
     Path("node_modules/zxing-wasm/dist/iife/reader/index.js"),
     Path("node_modules/zxing-wasm/dist/reader/zxing_reader.wasm"),
+    Path("node_modules/tesseract.js/dist/tesseract.min.js"),
+    Path("node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js"),
+    Path("node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz"),
 )
 
 

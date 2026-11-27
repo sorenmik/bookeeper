@@ -17,6 +17,16 @@ assert.equal(isbn13("1234567890123"), false);
 assert.equal(isbn13("9780140621007"), false);
 assert.equal(isbn13("978014062100"), false);
 
+const findIsbn = runInNewContext(`${scanner}\nfindIsbn`, {
+    document: {querySelector: () => element},
+    window: {addEventListener() {}},
+});
+assert.deepEqual({...findIsbn("Gyldendal 1987\nISBN 87-00-12345-X? no\nISBN: 87-7714-123-7")}, {value: "8777141237", labelled: true});
+assert.deepEqual({...findIsbn("9780140621006")}, {value: "9780140621006", labelled: false});
+assert.deepEqual({...findIsbn("ISBN 87-7714-123-7 1990")}, {value: "8777141237", labelled: true});
+assert.equal(findIsbn("ISBN 87-7714-123-4"), null);
+assert.equal(findIsbn("Printed 1990"), null);
+
 const lookup = {};
 const form = {submitted: null, requestSubmit(button) { this.submitted = button; }};
 const isbnInput = {value: "", form};

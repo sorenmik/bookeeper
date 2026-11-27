@@ -50,7 +50,16 @@ CONTENT_SECURITY_POLICY = "; ".join((
     "form-action 'self'",
     "frame-ancestors 'none'",
 ))
-SHARED_ASSETS = {"static", "scanner_wasm_js", "scanner_wasm_binary"}
+SHARED_ASSETS = {"static", "scanner_wasm_js", "scanner_wasm_binary", "ocr_asset"}
+# Served locally so OCR works offline and within the same-origin CSP.
+OCR_ASSETS = {
+    "tesseract.min.js": ("tesseract.js/dist", "text/javascript"),
+    "worker.min.js": ("tesseract.js/dist", "text/javascript"),
+    "tesseract-core-lstm.wasm.js": ("tesseract.js-core", "text/javascript"),
+    "tesseract-core-simd-lstm.wasm.js": ("tesseract.js-core", "text/javascript"),
+    "tesseract-core-relaxedsimd-lstm.wasm.js": ("tesseract.js-core", "text/javascript"),
+    "eng.traineddata.gz": ("@tesseract.js-data/eng/4.0.0_best_int", "application/octet-stream"),
+}
 
 
 def check_password(password: str) -> None:
@@ -298,6 +307,16 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
             Path(app.root_path).parent / "node_modules" / "zxing-wasm" / "dist" / "reader",
             "zxing_reader.wasm",
         )
+
+    @app.get("/ocr/<name>")
+    def ocr_asset(name: str) -> Response:
+        if name not in OCR_ASSETS:
+            abort(404)
+        folder, mimetype = OCR_ASSETS[name]
+        response = send_from_directory(Path(app.root_path).parent / "node_modules" / folder, name, mimetype=mimetype)
+        # Tesseract gunzips the language data itself, so the browser must not decode it.
+        response.headers.pop("Content-Encoding", None)
+        return response
 
     @app.get("/")
     def home() -> str:

@@ -43,6 +43,10 @@ To run Flask in the foreground instead, use:
 .venv/bin/python -m flask --app bookeeper run
 ```
 
+The camera scanner reads ISBN barcodes and, at the same time, recognises
+printed ISBN numbers with OCR (Tesseract.js) for older books without a
+barcode. Both engines run in the browser from the local `node_modules` copy.
+
 ## Backing up and testing
 
 In **Backup**, the first account can save, download, or restore a shared

@@ -23,6 +23,25 @@ function isbn13(value) {
     return [...value].reduce((sum, digit, index) => sum + Number(digit) * (index % 2 ? 3 : 1), 0) % 10 === 0;
 }
 
+function isbn10(value) {
+    if (!/^\d{9}[\dX]$/.test(value)) return false;
+    return [...value].reduce((sum, char, index) => sum + (char === "X" ? 10 : Number(char)) * (10 - index), 0) % 11 === 0;
+}
+
+// Finds a checksum-valid ISBN in OCR text such as "ISBN 87-7714-123-4".
+function findIsbn(text) {
+    const upper = text.toUpperCase();
+    for (const match of upper.matchAll(/(?:\d[ -]?){9,16}[\dX]/g)) {
+        const digits = match[0].replace(/[ -]/g, "");
+        const value = [digits, digits.slice(0, 13), digits.slice(0, 10)].find((item) => isbn13(item) || isbn10(item));
+        if (value) {
+            const labelled = /ISBN[\s:-]*$/.test(upper.slice(Math.max(0, match.index - 8), match.index));
+            return {value, labelled};
+        }
+    }
+    return null;
+}
+
 function loadScript(src) {
     const script = document.createElement("script");
     script.src = src;
@@ -55,6 +74,32 @@ async function loadBarcodeEngine() {
     return load;
 }
 
+let ocr;
+
+function loadOcr() {
+    if (!ocr) {
+        ocr = (async () => {
+            await loadScript(controls.dataset.ocr);
+            const files = new URL(controls.dataset.ocrFiles, document.baseURI).href.replace(/\/$/, "");
+            const worker = await Tesseract.createWorker("eng", Tesseract.OEM.LSTM_ONLY, {
+                workerPath: new URL(controls.dataset.ocrWorker, document.baseURI).href,
+                corePath: files,
+                langPath: files,
+                workerBlobURL: false,
+            });
+            await worker.setParameters({
+                tessedit_char_whitelist: "0123456789-XISBN: ",
+                tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+            });
+            return worker;
+        })().catch((error) => {
+            ocr = null;
+            throw error;
+        });
+    }
+    return ocr;
+}
+
 async function acceptIsbn(value) {
     const isbn = document.querySelector("#isbn");
     isbn.value = value;
@@ -73,6 +118,7 @@ class BarcodeCamera {
         this.video = null;
         this.canvas = document.createElement("canvas");
         this.context = this.canvas.getContext("2d", {willReadFrequently: true});
+        this.ocrCanvas = document.createElement("canvas");
         this.running = false;
         this.stopped = false;
         this.timer = null;
@@ -105,6 +151,46 @@ class BarcodeCamera {
         if (this.stopped) return;
         this.running = true;
         this.scheduleScan();
+        this.readText();
+    }
+
+    found(value) {
+        if (!this.running) return;
+        this.running = false;
+        this.onIsbn(value);
+    }
+
+    // Runs alongside barcode scanning for older books that only print the ISBN as text.
+    async readText() {
+        let worker;
+        try {
+            worker = await loadOcr();
+        } catch (error) {
+            console.warn("Bookeeper could not load text recognition; scanning barcodes only.", error);
+            return;
+        }
+        const seen = new Set();
+        while (this.running) {
+            if (this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && this.video.videoWidth) {
+                try {
+                    const scale = Math.min(1, 1600 / this.video.videoWidth);
+                    this.ocrCanvas.width = Math.round(this.video.videoWidth * scale);
+                    this.ocrCanvas.height = Math.round(this.video.videoHeight * scale);
+                    this.ocrCanvas.getContext("2d").drawImage(this.video, 0, 0, this.ocrCanvas.width, this.ocrCanvas.height);
+                    const {data} = await worker.recognize(this.ocrCanvas);
+                    const match = findIsbn(data.text || "");
+                    // A checksum alone lets about 1 in 10 misreads through, so unlabelled numbers must be read twice.
+                    if (match && (match.labelled || seen.has(match.value))) {
+                        this.found(match.value);
+                        return;
+                    }
+                    if (match) seen.add(match.value);
+                } catch (error) {
+                    console.warn("Bookeeper could not read text from a camera frame.", error);
+                }
+            }
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
     }
 
     enableAutofocus() {
@@ -148,7 +234,7 @@ class BarcodeCamera {
                 const match = results.find((result) => isbn13(result.text));
                 const value = match ? match.text : null;
                 if (value && this.running) {
-                    this.onIsbn(value);
+                    this.found(value);
                     return;
                 }
             } catch (error) {
@@ -207,6 +293,7 @@ begin.addEventListener("click", async () => {
     }
     begin.disabled = true;
     showStatus("Loading the barcode scanner…");
+    loadOcr().catch(() => {});
     try {
         await loadBarcodeEngine();
     } catch (error) {
@@ -223,9 +310,9 @@ begin.addEventListener("click", async () => {
         await scanner.start();
         if (scanner && !stopping) {
             end.hidden = previewOptions.hidden = false;
-            showStatus("Camera on. Scanning for an ISBN barcode…");
+            showStatus("Camera on. Scanning for an ISBN barcode or a printed ISBN number…");
             scanHint = setTimeout(() => {
-                showStatus("Still scanning. Move the barcode closer and hold it steady, or enter the ISBN manually.");
+                showStatus("Still scanning. Hold the barcode or the printed ISBN closer and steady, or enter it manually.");
             }, 5000);
         }
     } catch (error) {
