@@ -7,7 +7,7 @@ import qrcode
 import qrcode.image.svg
 from flask import Blueprint, Flask, Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from .catalog import author_sort_key, find_duplicate, fold, normalize_isbn
+from .catalog import LookupUnavailable, author_sort_key, find_duplicate, fold, lookup_isbn, normalize_isbn
 from .dashboard import activity
 from .places import slot_labels
 from .storage import BookCopy, Library, Loan, Reading, Store
@@ -93,6 +93,8 @@ def register_workflows(app: Flask, store: Store) -> None:
         title = request.form.get("title", "").strip()
         author = request.form.get("author", "").strip()
         isbn = request.form.get("isbn", "").strip()
+        if request.form.get("action") == "lookup":
+            return wishlist_lookup(title, author, isbn)
         if not title or max(len(title), len(author)) > 250:
             abort(400, "Enter a title. Title and author can use up to 250 characters each.")
         if isbn:
@@ -106,6 +108,29 @@ def register_workflows(app: Flask, store: Store) -> None:
             library.setdefault("wishlists", {}).setdefault(g.user, {})[key] = book
         flash("Book added to your wishlist.", "success")
         return redirect(url_for("household.wishlist"))
+
+    def wishlist_lookup(title: str, author: str, isbn: str) -> tuple[str, int] | str:
+        """Fills blank title and author from the book databases so the wish can be reviewed before saving."""
+        wish = {"title": title[:250], "author": author[:250], "isbn": isbn[:32]}
+        try:
+            wish["isbn"] = normalize_isbn(isbn)
+        except ValueError as exc:
+            message = "Enter an ISBN before looking up the book." if not isbn else str(exc)
+            return render_template("wishlist.html", adding=True, wish=wish, error=message, lookup_result="failed"), 400
+        try:
+            match = lookup_isbn(wish["isbn"])
+        except LookupUnavailable:
+            match, notice = None, "No book database could be reached right now. You can still enter the details manually."
+        else:
+            notice = "ISBN found. Review the details before adding." if match else (
+                "No book database found this ISBN. You can enter the details manually."
+            )
+        if match:
+            wish["title"] = wish["title"] or match.title
+            wish["author"] = wish["author"] or match.author
+        return render_template(
+            "wishlist.html", adding=True, wish=wish, notice=notice, lookup_result="found" if match else "failed",
+        )
 
     @pages.post("/wishlist/<key>/<action>")
     def change_wishlist(key: str, action: str) -> Response:

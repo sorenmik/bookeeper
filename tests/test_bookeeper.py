@@ -488,6 +488,22 @@ class WorkflowTests(unittest.TestCase):
         self.assertLess(home.index("Second read"), home.index("First read"))
         self.assertLess(home.index("First read"), home.index("Legacy read"))
 
+    def test_wishlist_isbn_lookup_prefills_title_author_and_isbn(self):
+        with patch("bookeeper.workflows.lookup_isbn", return_value=BookMetadata("Wished", "Writer", pages=99)) as fetch:
+            page = self.submit(self.member, "/wishlist", action="lookup", isbn="0-14-143951-3")
+        fetch.assert_called_once_with("9780141439518")
+        for value in (b"Wished", b"Writer", b"9780141439518"):
+            self.assertIn(b'value="' + value + b'"', page.data)
+        self.assertIn(b'data-lookup="found"', page.data)
+        self.assertNotIn("wishlists", self.store.read())
+        with patch("bookeeper.workflows.lookup_isbn", return_value=None):
+            self.assertIn(b'data-lookup="failed"', self.submit(self.member, "/wishlist", action="lookup", isbn="9780141439518").data)
+        self.assertEqual(self.submit(self.member, "/wishlist", action="lookup", isbn="123").status_code, 400)
+        self.assertEqual(self.submit(self.member, "/wishlist", title="Wished", author="Writer", isbn="9780141439518").status_code, 302)
+        self.assertEqual(
+            next(iter(self.store.read()["wishlists"]["member"].values()))["isbn"], "9780141439518"
+        )
+
     def test_wishlist_and_notes_are_private_until_purchase(self):
         self.assertEqual(self.submit(self.member, "/wishlist", title="Secret book").status_code, 302)
         key = next(iter(self.store.read()["wishlists"]["member"]))

@@ -1,23 +1,49 @@
 {% extends "base.html" %}
 {% from "icons.html" import icon %}
 {% block title %}Wishlist · Bookeeper{% endblock %}
+{% block scripts %}{% if adding or request.args.get('add') == '1' %}<script src="{{ url_for('static', filename='scanner.js') }}" defer></script>{% endif %}{% endblock %}
 {% block content %}
-{% set adding = request.args.get('add') == '1' %}
+{% set adding = adding or request.args.get('add') == '1' %}
+{% set wish = wish or {} %}
 <div class="heading">
     <h1>{{ 'Add a wish' if adding else 'My wishlist' }}</h1>
     {% if adding %}
         <a href="{{ url_for('household.wishlist') }}">Back to wishlist</a>
     {% else %}
-        <a class="button primary" href="{{ url_for('household.wishlist', add=1) }}">{{ icon('add') }} Add wish</a>
+        <div class="actions">
+            <a class="button" href="{{ url_for('household.wishlist', add=1, scan=1, _anchor='scanner-controls') }}">{{ icon('scan') }} Scan to wishlist</a>
+            <a class="button primary" href="{{ url_for('household.wishlist', add=1) }}">{{ icon('add') }} Add wish</a>
+        </div>
     {% endif %}
 </div>
 {% if adding %}
+{% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+{% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
 <form class="card fields narrow" method="post" action="{{ url_for('household.wishlist') }}">
     <input type="hidden" name="csrf" value="{{ session.csrf }}">
-    <label>Title <input name="title" required maxlength="250"></label>
-    <label>Author <input name="author" maxlength="250"></label>
-    <label>ISBN (optional) <input name="isbn" maxlength="32"></label>
-    <button class="primary" type="submit">Add to wishlist</button>
+    <label>Title <input name="title" required maxlength="250" value="{{ wish.title }}"></label>
+    <label>Author <input name="author" maxlength="250" value="{{ wish.author }}"></label>
+    <label>ISBN (optional) <input id="isbn" name="isbn" maxlength="32" value="{{ wish.isbn }}"></label>
+    <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
+         data-wasm="{{ url_for('scanner_wasm_binary') }}"
+         data-ocr="{{ url_for('ocr_asset', name='tesseract.min.js') }}"
+         data-ocr-worker="{{ url_for('ocr_asset', name='worker.min.js') }}"
+         data-ocr-files="{{ url_for('ocr_asset', name='x')[:-1] }}"
+         data-lookup="{{ lookup_result }}">
+        <button type="button" id="scan-start">Scan ISBN with camera</button>
+        <button type="button" id="scan-stop" hidden>Stop camera</button>
+        <div id="scan-preview-options" hidden>
+            <label class="check"><input type="checkbox" id="scan-mirror"> Mirror preview</label>
+        </div>
+        <p id="scan-status" role="status"></p>
+        <div class="scan-frame">
+            <div id="scan-view" hidden></div>
+        </div>
+    </div>
+    <div class="actions">
+        <button class="primary" type="submit">Add to wishlist</button>
+        <button type="submit" id="isbn-lookup" name="action" value="lookup" formnovalidate>Look up ISBN</button>
+    </div>
 </form>
 {% elif books %}
 <ul class="card compact-list wishlist-list" aria-label="Wishlist entries">
