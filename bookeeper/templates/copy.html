@@ -17,7 +17,7 @@
     <label>Author <input name="author" value="{{ book.author }}" maxlength="250"></label>
     <label>Series <input name="series" value="{{ book.series }}" maxlength="250"></label>
     <label>ISBN (optional) <input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
-    <small id="isbn-help">Lookup fills blank fields using Open Library, then Google Books. Subjects are used as a genre suggestion.</small>
+    <small id="isbn-help">Lookup fills blank fields from Open Library, the Royal Danish Library, Libris or Google Books. Subjects are used as a genre suggestion.</small>
     <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
          data-wasm="{{ url_for('scanner_wasm_binary') }}">
         <button type="button" id="scan-start">Scan ISBN with camera</button>

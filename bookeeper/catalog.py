@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -7,6 +8,7 @@ from functools import lru_cache
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 from .places import in_location
 from .storage import BookCopy, Unit
@@ -104,21 +106,75 @@ def positive_number(value: object) -> int | None:
     return None
 
 
-def _fetch_json(url: str) -> dict:
-    request = Request(url, headers={"Accept": "application/json"})
+def _fetch(url: str, accept: str = "application/json") -> bytes:
+    request = Request(url, headers={"Accept": accept})
     try:
         with urlopen(request, timeout=5) as response:
             data = response.read(1024 * 1024 + 1)
-        payload = json.loads(data) if len(data) <= 1024 * 1024 else None
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise LookupUnavailable from exc
+    if len(data) > 1024 * 1024:
+        raise LookupUnavailable("Lookup response is too large.")
+    return data
+
+
+def _fetch_json(url: str) -> dict:
+    try:
+        payload = json.loads(_fetch(url))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise LookupUnavailable from exc
     if not isinstance(payload, dict):
         raise LookupUnavailable
     return payload
 
 
+_LANGUAGES = {
+    "da": "Danish", "dan": "Danish", "en": "English", "eng": "English", "sv": "Swedish", "swe": "Swedish",
+    "no": "Norwegian", "nb": "Norwegian", "nor": "Norwegian", "de": "German", "ger": "German", "deu": "German",
+    "fr": "French", "fre": "French", "fra": "French", "es": "Spanish", "spa": "Spanish",
+}
+
+
+def _language(code: str) -> str:
+    return _LANGUAGES.get(code.casefold(), code)
+
+
+def _strings(value: object) -> list[str]:
+    return [text for item in (value if isinstance(value, list) else [value]) if (text := _text(item))]
+
+
+def _person(name: str) -> str:
+    """Turn catalogue headings such as "Austen, Jane, 1775-1817" into "Jane Austen"."""
+    parts = [part.strip() for part in name.strip().rstrip(".").split(",")]
+    parts = [part for part in parts if part and not re.fullmatch(r"[0-9 ?.-]+", part)]
+    return f"{parts[1]} {parts[0]}" if len(parts) >= 2 else " ".join(parts)
+
+
+def lookup_libris(isbn: str) -> BookMetadata | None:
+    payload = _fetch_json("https://libris.kb.se/xsearch?" + urlencode({"query": f"isbn:{isbn}", "format": "json", "n": 1}))
+    result = payload.get("xsearch")
+    records = _items(result.get("list")) if isinstance(result, dict) else []
+    record = records[0] if records and isinstance(records[0], dict) else {}
+    title = re.sub(r"\s+:\s+", ": ", _text(record.get("title"))).rstrip(" /")
+    if not title:
+        return None
+    publishers = [re.sub(r"^.*\s:\s+|^[\s;:]+", "", item) for item in _strings(record.get("publisher"))]
+    date = next((match.group() for item in _strings(record.get("date")) if (match := re.search(r"[0-9]{4}", item))), "")
+    return BookMetadata(
+        title=title[:250],
+        author=_limited_names([_person(name) for name in _strings(record.get("creator"))], 250),
+        publisher=_limited_names([name for name in publishers if name], 250),
+        publication_date=date,
+        language=_limited_names([_language(code) for code in _strings(record.get("language"))], 80),
+    )
+
+
 def lookup_google_books(isbn: str) -> BookMetadata | None:
-    payload = _fetch_json("https://www.googleapis.com/books/v1/volumes?" + urlencode({"q": f"isbn:{isbn}", "maxResults": 1}))
+    query = {"q": f"isbn:{isbn}", "maxResults": 1}
+    # Keyless requests share a small quota and often get HTTP 429.
+    if key := os.environ.get("BOOKEEPER_GOOGLE_BOOKS_KEY", "").strip():
+        query["key"] = key
+    payload = _fetch_json("https://www.googleapis.com/books/v1/volumes?" + urlencode(query))
     items = _items(payload.get("items"))
     info = items[0].get("volumeInfo") if items and isinstance(items[0], dict) else None
     if not isinstance(info, dict) or not _text(info.get("title")):
@@ -131,27 +187,78 @@ def lookup_google_books(isbn: str) -> BookMetadata | None:
         genre=_limited_names(_names(info.get("categories")), 80),
         publisher=_text(info.get("publisher"))[:250],
         publication_date=_text(info.get("publishedDate"))[:80],
-        language=_text(info.get("language"))[:80],
+        language=_language(_text(info.get("language")))[:80],
         pages=positive_number(info.get("pageCount")),
     )
 
 
-# Ordered by how likely each source is to know an English or Danish ISBN.
-_PROVIDERS = (lookup_google_books,)
+_MARC = "{http://www.loc.gov/MARC21/slim}"
+
+
+def _marc_values(record: ElementTree.Element, tags: str, codes: str) -> list[str]:
+    """Subfield values from MARC datafields, joined per field, with trailing ISBD punctuation removed."""
+    values = []
+    for field in record.iter(f"{_MARC}datafield"):
+        if field.get("tag") in tags.split():
+            parts = [_text(sub.text) for sub in field.iter(f"{_MARC}subfield") if sub.get("code") in codes]
+            if value := re.sub(r"\s*[/:;,.=]+$", "", " ".join(part for part in parts if part)).strip():
+                values.append(value)
+    return values
+
+
+def lookup_royal_library(isbn: str) -> BookMetadata | None:
+    """The Royal Danish Library receives a legal-deposit copy of every Danish book."""
+    query = urlencode({
+        "version": "1.2", "operation": "searchRetrieve", "query": f"alma.isbn={isbn}", "maximumRecords": 1,
+    })
+    data = _fetch(f"https://kbdk-kgl.alma.exlibrisgroup.com/view/sru/45KBDK_KGL?{query}", "application/xml")
+    try:
+        root = ElementTree.fromstring(data)
+    except ElementTree.ParseError as exc:
+        raise LookupUnavailable from exc
+    record = root.find(f".//{_MARC}record")
+    if record is None:
+        return None
+    title = re.sub(r"\s+:\s+", ": ", next(iter(_marc_values(record, "245", "ab")), ""))
+    if not title:
+        return None
+    control = next((field.text or "" for field in record.iter(f"{_MARC}controlfield") if field.get("tag") == "008"), "")
+    language = control[35:38].strip(" |") if len(control) >= 38 else ""
+    pages = next((match.group(1) for value in _marc_values(record, "300", "a")
+                  if (match := re.search(r"([0-9]{1,9})\s*(?:sider|s\.|pages|p\.)", value))), None)
+    date = next((match.group() for value in _marc_values(record, "264 260", "c")
+                 if (match := re.search(r"[0-9]{4}", value))), "")
+    return BookMetadata(
+        title=title[:250],
+        author=_limited_names([_person(name) for name in _marc_values(record, "100 700", "a")], 250),
+        summary=next(iter(_marc_values(record, "520", "a")), "")[:5000],
+        genre=_limited_names(_marc_values(record, "650 655", "a"), 80),
+        publisher=_limited_names(_marc_values(record, "264 260", "b"), 250),
+        publication_date=date,
+        language=_language(language)[:80] if language else "",
+        pages=positive_number(pages),
+    )
 
 
 def lookup_isbn(isbn: str) -> BookMetadata | None:
-    """Try Open Library first, then fall back to other sources until one finds the book."""
-    failure = None
-    for provider in (lookup_open_library, *_PROVIDERS):
+    """Ask each source in turn and return the first match.
+
+    Raises LookupUnavailable only when every source failed; otherwise a miss means not found.
+    """
+    failures = 0
+    # Ordered by how likely each source is to know the ISBN; 978-87 is the Danish ISBN range.
+    providers = (lookup_open_library, lookup_libris, lookup_google_books, lookup_royal_library)
+    if isbn.startswith("97887"):
+        providers = (lookup_royal_library, lookup_open_library, lookup_libris, lookup_google_books)
+    for provider in providers:
         try:
             if metadata := provider(isbn):
                 return metadata
-        except LookupUnavailable as exc:
-            logging.getLogger(__name__).warning("Lookup provider unavailable for ISBN %s.", isbn)
-            failure = exc
-    if failure:
-        raise failure
+        except LookupUnavailable:
+            logging.getLogger(__name__).warning("%s was unavailable for ISBN %s.", getattr(provider, "__name__", provider), isbn)
+            failures += 1
+    if failures == len(providers):
+        raise LookupUnavailable("No book database could be reached.")
     return None
 
 

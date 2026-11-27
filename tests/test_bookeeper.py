@@ -749,20 +749,65 @@ class DataTests(unittest.TestCase):
             self.assertIsNone(lookup_isbn("9780141439518"))
         self.assertEqual(normalize_isbn("080442957X"), "9780804429573")
 
-    def test_lookup_falls_back_to_google_books(self):
+    def test_lookup_falls_back_through_libris_and_google_books(self):
+        record = {"xsearch": {"list": [{
+            "title": "Kvinden i buret : krimi", "creator": "Adler-Olsen, Jussi.", "date": "2008",
+            "publisher": "København : Gyldendals Bogklubber", "language": "dan",
+        }]}}
+        with patch("bookeeper.catalog.lookup_open_library", return_value=None), \
+                patch("bookeeper.catalog.lookup_royal_library", return_value=None), \
+                patch("bookeeper.catalog.lookup_google_books") as google, \
+                patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(json.dumps(record).encode())) as fetch:
+            result = lookup_all_isbn("9788703032320")
+        self.assertEqual(result, BookMetadata(
+            "Kvinden i buret: krimi", "Jussi Adler-Olsen", publisher="Gyldendals Bogklubber",
+            publication_date="2008", language="Danish",
+        ))
+        url = urlsplit(fetch.call_args.args[0].full_url)
+        self.assertEqual((url.netloc, parse_qs(url.query)["query"]), ("libris.kb.se", ["isbn:9788703032320"]))
+        google.assert_not_called()
+
         volume = {"items": [{"volumeInfo": {"title": "Hygge", "subtitle": "Lykke", "authors": ["Meik"], "language": "da", "pageCount": 200}}]}
         with patch("bookeeper.catalog.lookup_open_library", side_effect=LookupUnavailable), \
+                patch("bookeeper.catalog.lookup_royal_library", side_effect=LookupUnavailable), \
+                patch("bookeeper.catalog.lookup_libris", return_value=None), \
+                patch.dict(os.environ, {"BOOKEEPER_GOOGLE_BOOKS_KEY": "abc"}), \
                 patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(json.dumps(volume).encode())) as fetch:
             result = lookup_all_isbn("9788702173222")
-        self.assertEqual((result.title, result.author, result.language, result.pages), ("Hygge: Lykke", "Meik", "da", 200))
-        self.assertEqual(parse_qs(urlsplit(fetch.call_args.args[0].full_url).query)["q"], ["isbn:9788702173222"])
+        self.assertEqual((result.title, result.author, result.language, result.pages), ("Hygge: Lykke", "Meik", "Danish", 200))
+        query = parse_qs(urlsplit(fetch.call_args.args[0].full_url).query)
+        self.assertEqual((query["q"], query["key"]), (["isbn:9788702173222"], ["abc"]))
+
+        # A miss from one source plus failures elsewhere is "not found"; only all failing is "unavailable".
         with patch("bookeeper.catalog.lookup_open_library", return_value=None), \
-                patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(b"{}")):
+                patch("bookeeper.catalog.urlopen", side_effect=URLError("down")):
             self.assertIsNone(lookup_all_isbn("9788702173222"))
         with patch("bookeeper.catalog.lookup_open_library", side_effect=LookupUnavailable), \
                 patch("bookeeper.catalog.urlopen", side_effect=URLError("down")), \
                 self.assertRaises(LookupUnavailable):
             lookup_all_isbn("9788702173222")
+
+    def test_danish_isbn_is_looked_up_in_the_royal_library_first(self):
+        marc = b"""<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><records><record><recordData>
+            <record xmlns="http://www.loc.gov/MARC21/slim">
+              <controlfield tag="008">191025s2008    dk ||||||     00||f dan||</controlfield>
+              <datafield tag="100"><subfield code="a">Adler-Olsen, Jussi.</subfield></datafield>
+              <datafield tag="245"><subfield code="a">Kvinden i buret :</subfield><subfield code="b">krimi /</subfield>
+                <subfield code="c">Jussi Adler-Olsen.</subfield></datafield>
+              <datafield tag="260"><subfield code="a">[Kbh.] :</subfield><subfield code="b">Gyldendals Bogklubber,</subfield>
+                <subfield code="c">2008.</subfield></datafield>
+              <datafield tag="300"><subfield code="a">378 sider.</subfield></datafield>
+            </record></recordData></record></records></searchRetrieveResponse>"""
+        with patch("bookeeper.catalog.lookup_open_library") as open_library, \
+                patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(marc)) as fetch:
+            result = lookup_all_isbn("9788703032320")
+        self.assertEqual(result, BookMetadata(
+            "Kvinden i buret: krimi", "Jussi Adler-Olsen", publisher="Gyldendals Bogklubber",
+            publication_date="2008", language="Danish", pages=378,
+        ))
+        url = urlsplit(fetch.call_args.args[0].full_url)
+        self.assertEqual((url.netloc, parse_qs(url.query)["query"]), ("kbdk-kgl.alma.exlibrisgroup.com", ["alma.isbn=9788703032320"]))
+        open_library.assert_not_called()
 
     def test_open_library_reads_a_work_summary(self):
         key = "ISBN:9780141439518"

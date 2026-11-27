@@ -409,13 +409,13 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
                     try:
                         match = lookup_isbn(book["isbn"])
                     except LookupUnavailable:
-                        notice = "Open Library is unavailable right now. You can still enter the details manually."
+                        notice = "No book database could be reached right now. You can still enter the details manually."
                     else:
                         if match is None:
-                            notice = "Open Library did not find this ISBN. You can enter the details manually."
+                            notice = "No book database found this ISBN. You can enter the details manually."
                         else:
                             book = fill_book_metadata(book, match)
-                            notice = "ISBN found. Review the details and fill in anything Open Library left blank before saving."
+                            notice = "ISBN found. Review the details and fill in anything left blank before saving."
                 else:
                     with store.edit() as latest:
                         if copy_id is not None and copy_id not in latest["copies"]:

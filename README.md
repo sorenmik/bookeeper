@@ -74,5 +74,14 @@ export BOOKEEPER_DATA_DIR="$PWD/instance/demo"
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-The tests use temporary data folders and do not contact Open Library.
+The tests use temporary data folders and do not contact the book databases.
+
+## ISBN lookup
+
+Lookup tries Open Library, then the Libris union catalogue, then Google Books,
+then the Royal Danish Library, and uses the first match. Danish ISBNs (978-87)
+ask the Royal Danish Library first, since it holds a legal-deposit copy of
+every Danish book. Google Books rate-limits keyless requests heavily; set
+`BOOKEEPER_GOOGLE_BOOKS_KEY` to a free Google Books API key to make that
+fallback reliable.
 
