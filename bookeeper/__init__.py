@@ -29,6 +29,7 @@ from .places import UNPLACED, filter_options, mini_map, parse_slot, slot_label, 
 from .shelves import register_shelves
 from .workflows import READING_STATUSES, currently_reading, reading_for, register_workflows
 from .backup import MAX_BACKUP, register_backups
+from .todo import register_todo
 from .dashboard import activity
 from .quotes import needs_refresh, quote_for_display, refresh_quote
 from .version import build_version
@@ -539,4 +540,5 @@ def create_app(config: dict[str, object] | None = None) -> Flask:
     register_shelves(app, store)
     register_workflows(app, store)
     register_backups(app, store)
+    register_todo(app, store)
     return app

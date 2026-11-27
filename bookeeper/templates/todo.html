@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}TODO · Bookeeper{% endblock %}
+{% block content %}
+<h1>TODO: feature ideas</h1>
+<p class="muted">Anyone in the household can suggest features for later. Remove an idea once it is done or dropped.</p>
+<form class="card fields narrow" method="post" action="{{ url_for('todo.index') }}">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label>New idea <textarea name="text" rows="3" maxlength="1000" required></textarea></label>
+    <button class="primary" type="submit">Add idea</button>
+</form>
+{% if ideas %}
+<ul class="card compact-list" aria-label="Feature ideas">
+    {% for idea in ideas %}
+    <li>
+        <div>
+            <p class="todo-text">{{ idea.text }}</p>
+            <small class="muted">{{ idea.author }} · {{ idea.added_on }}</small>
+        </div>
+        <form method="post" action="{{ url_for('todo.remove', key=idea.id) }}">
+            <input type="hidden" name="csrf" value="{{ session.csrf }}">
+            <button type="submit">Remove</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="card">No ideas yet.</p>
+{% endif %}
+{% endblock %}

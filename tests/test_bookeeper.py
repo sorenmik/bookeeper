@@ -504,6 +504,17 @@ class WorkflowTests(unittest.TestCase):
             next(iter(self.store.read()["wishlists"]["member"].values()))["isbn"], "9780141439518"
         )
 
+    def test_todo_ideas_are_shared_and_removable(self):
+        self.assertEqual(self.submit(self.member, "/todo", text="  ").status_code, 400)
+        self.assertEqual(self.submit(self.member, "/todo", text="Scan <b>covers</b>").status_code, 302)
+        page = self.owner.get("/todo").data
+        self.assertIn(b"Scan &lt;b&gt;covers&lt;/b&gt;", page)
+        self.assertIn(b"member", page)
+        key = next(iter(self.store.read()["todos"]))
+        self.assertEqual(self.submit(self.owner, f"/todo/{key}/remove").status_code, 302)
+        self.assertEqual(self.submit(self.owner, f"/todo/{key}/remove").status_code, 404)
+        self.assertNotIn(b"covers", self.member.get("/todo").data)
+
     def test_wishlist_and_notes_are_private_until_purchase(self):
         self.assertEqual(self.submit(self.member, "/wishlist", title="Secret book").status_code, 302)
         key = next(iter(self.store.read()["wishlists"]["member"]))

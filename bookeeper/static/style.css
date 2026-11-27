@@ -195,6 +195,7 @@ summary { cursor: pointer; }
 #scan-view video { display: block; width: 100%; height: auto; aspect-ratio: var(--scan-ratio, auto); object-fit: cover; object-position: center; }
 .scan-frame.is-mirrored video { transform: scaleX(-1); }
 .metric { font-size: 2rem; font-weight: 700; margin-inline-start: 0; }
+.todo-text { margin: 0; white-space: pre-wrap; }
 .sort-list li { padding-block: .35rem; }
 .sort-form { align-items: end; }
 .sort-list span { display: block; }

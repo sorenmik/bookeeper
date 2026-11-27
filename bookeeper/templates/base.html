@@ -22,7 +22,7 @@
                         ('catalog', 'catalog', 'Catalog'), ('locations', 'location', 'Locations'),
                         ('household.wishlist', 'wishlist', 'Wishlist'), ('household.loans', 'loans', 'Loans'),
                         ('household.stats', 'stats', 'Stats'), ('household.sorting', 'sorting', 'Sorting'),
-                        ('backups.index', 'backup', 'Backup')
+                        ('todo.index', 'todo', 'TODO'), ('backups.index', 'backup', 'Backup')
                     ) if endpoint != 'backups.index' or g.owner %}
                         <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ icon(symbol) }} {{ label }}</a>
                     {% endfor %}

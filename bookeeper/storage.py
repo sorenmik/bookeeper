@@ -94,6 +94,7 @@ class Library(LibraryRequired, total=False):
     notes: dict[str, dict[str, str]]
     quote: dict[str, str]
     quote_state: dict[str, Any]
+    todos: dict[str, dict[str, str]]
 
 
 def upgrade(library: Library) -> Library:
