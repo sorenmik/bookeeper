@@ -212,10 +212,11 @@ def register_workflows(app: Flask, store: Store) -> None:
         try:
             parts = urlsplit(url)
             if parts.scheme in {"http", "https"} and parts.hostname and not parts.username and len(url) <= 400:
-                return url
+                # Phone browsers only allow camera access on HTTPS pages.
+                return parts._replace(scheme="https").geturl()
         except ValueError:
             pass
-        abort(400, "Set BOOKEEPER_PUBLIC_URL to a valid HTTP or HTTPS address.")
+        abort(400, "Set BOOKEEPER_PUBLIC_URL to a valid HTTPS address.")
 
     @pages.get("/connect")
     def connect() -> str:

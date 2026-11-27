@@ -55,10 +55,14 @@ async function loadBarcodeEngine() {
     return load;
 }
 
-function acceptIsbn(value) {
-    document.querySelector("#isbn").value = value;
-    showStatus("ISBN scanned. Choose Look up ISBN to fill in the book details.");
-    stopCamera();
+async function acceptIsbn(value) {
+    const isbn = document.querySelector("#isbn");
+    isbn.value = value;
+    showStatus("ISBN scanned. Looking up the book details…");
+    await stopCamera();
+    const lookup = document.querySelector("#isbn-lookup");
+    if (isbn.form.requestSubmit) isbn.form.requestSubmit(lookup);
+    else lookup.click();
 }
 
 class BarcodeCamera {

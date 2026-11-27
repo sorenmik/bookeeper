@@ -9,10 +9,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
 from unittest.mock import Mock, call, patch
+from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
 
 from bookeeper import create_app
-from bookeeper.catalog import BookMetadata, LookupUnavailable, lookup_isbn, normalize_isbn
+from bookeeper.catalog import BookMetadata, LookupUnavailable, normalize_isbn
+from bookeeper.catalog import lookup_isbn as lookup_all_isbn
+from bookeeper.catalog import lookup_open_library as lookup_isbn
 from bookeeper.dashboard import activity
 from bookeeper.quotes import (
     Quote, Unavailable, _display_name, _title_variants, fallback_quote, gutenberg_sentences, needs_refresh,
@@ -564,6 +567,10 @@ class WorkflowTests(unittest.TestCase):
         catalog = self.owner.get("/catalog").data
         self.assertIn(b'<footer class="site-footer">\n        <a href="/connect"', catalog)
         self.assertNotIn(b"/connect/qr.svg", catalog)
+        self.app.config["PUBLIC_URL"] = "http://192.168.1.20:5000/"
+        connect = self.owner.get("/connect").data
+        self.assertIn(b'href="https://192.168.1.20:5000/"', connect)
+        self.assertNotIn(b"http://", connect.replace(b"http://www.w3.org", b""))
         self.assertIn(b"River Atlas", self.owner.get("/sorting?by=genre&by=").data)
 
 
@@ -741,6 +748,21 @@ class DataTests(unittest.TestCase):
         with patch("bookeeper.catalog.urlopen", side_effect=[io.BytesIO(b"{}"), io.BytesIO(b"{}")]):
             self.assertIsNone(lookup_isbn("9780141439518"))
         self.assertEqual(normalize_isbn("080442957X"), "9780804429573")
+
+    def test_lookup_falls_back_to_google_books(self):
+        volume = {"items": [{"volumeInfo": {"title": "Hygge", "subtitle": "Lykke", "authors": ["Meik"], "language": "da", "pageCount": 200}}]}
+        with patch("bookeeper.catalog.lookup_open_library", side_effect=LookupUnavailable), \
+                patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(json.dumps(volume).encode())) as fetch:
+            result = lookup_all_isbn("9788702173222")
+        self.assertEqual((result.title, result.author, result.language, result.pages), ("Hygge: Lykke", "Meik", "da", 200))
+        self.assertEqual(parse_qs(urlsplit(fetch.call_args.args[0].full_url).query)["q"], ["isbn:9788702173222"])
+        with patch("bookeeper.catalog.lookup_open_library", return_value=None), \
+                patch("bookeeper.catalog.urlopen", return_value=io.BytesIO(b"{}")):
+            self.assertIsNone(lookup_all_isbn("9788702173222"))
+        with patch("bookeeper.catalog.lookup_open_library", side_effect=LookupUnavailable), \
+                patch("bookeeper.catalog.urlopen", side_effect=URLError("down")), \
+                self.assertRaises(LookupUnavailable):
+            lookup_all_isbn("9788702173222")
 
     def test_open_library_reads_a_work_summary(self):
         key = "ISBN:9780141439518"

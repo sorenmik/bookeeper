@@ -17,7 +17,7 @@
     <label>Author <input name="author" value="{{ book.author }}" maxlength="250"></label>
     <label>Series <input name="series" value="{{ book.series }}" maxlength="250"></label>
     <label>ISBN (optional) <input id="isbn" name="isbn" value="{{ book.isbn }}" maxlength="32" aria-describedby="isbn-help"></label>
-    <small id="isbn-help">Lookup fills blank fields using Open Library. Subjects are used as a genre suggestion.</small>
+    <small id="isbn-help">Lookup fills blank fields using Open Library, then Google Books. Subjects are used as a genre suggestion.</small>
     <div id="scanner-controls" data-reader="{{ url_for('scanner_wasm_js') }}"
          data-wasm="{{ url_for('scanner_wasm_binary') }}">
         <button type="button" id="scan-start">Scan ISBN with camera</button>
@@ -61,7 +61,7 @@
         {% else %}
             <button class="primary" type="submit">Save copy</button>
         {% endif %}
-        <button type="submit" name="action" value="lookup" formnovalidate>Look up ISBN</button>
+        <button type="submit" id="isbn-lookup" name="action" value="lookup" formnovalidate>Look up ISBN</button>
         <a href="{{ url_for('catalog') }}">Cancel</a>
     </div>
 </form>

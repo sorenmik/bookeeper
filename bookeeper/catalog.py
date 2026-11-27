@@ -104,7 +104,58 @@ def positive_number(value: object) -> int | None:
     return None
 
 
+def _fetch_json(url: str) -> dict:
+    request = Request(url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=5) as response:
+            data = response.read(1024 * 1024 + 1)
+        payload = json.loads(data) if len(data) <= 1024 * 1024 else None
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise LookupUnavailable from exc
+    if not isinstance(payload, dict):
+        raise LookupUnavailable
+    return payload
+
+
+def lookup_google_books(isbn: str) -> BookMetadata | None:
+    payload = _fetch_json("https://www.googleapis.com/books/v1/volumes?" + urlencode({"q": f"isbn:{isbn}", "maxResults": 1}))
+    items = _items(payload.get("items"))
+    info = items[0].get("volumeInfo") if items and isinstance(items[0], dict) else None
+    if not isinstance(info, dict) or not _text(info.get("title")):
+        return None
+    title, subtitle = _text(info.get("title")), _text(info.get("subtitle"))
+    return BookMetadata(
+        title=(f"{title}: {subtitle}" if subtitle else title)[:250],
+        author=_limited_names(_names(info.get("authors")), 250),
+        summary=_text(info.get("description"))[:5000],
+        genre=_limited_names(_names(info.get("categories")), 80),
+        publisher=_text(info.get("publisher"))[:250],
+        publication_date=_text(info.get("publishedDate"))[:80],
+        language=_text(info.get("language"))[:80],
+        pages=positive_number(info.get("pageCount")),
+    )
+
+
+# Ordered by how likely each source is to know an English or Danish ISBN.
+_PROVIDERS = (lookup_google_books,)
+
+
 def lookup_isbn(isbn: str) -> BookMetadata | None:
+    """Try Open Library first, then fall back to other sources until one finds the book."""
+    failure = None
+    for provider in (lookup_open_library, *_PROVIDERS):
+        try:
+            if metadata := provider(isbn):
+                return metadata
+        except LookupUnavailable as exc:
+            logging.getLogger(__name__).warning("Lookup provider unavailable for ISBN %s.", isbn)
+            failure = exc
+    if failure:
+        raise failure
+    return None
+
+
+def lookup_open_library(isbn: str) -> BookMetadata | None:
     key = f"ISBN:{isbn}"
     query = urlencode({"bibkeys": key, "format": "json", "jscmd": "data"})
     error = None
